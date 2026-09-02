@@ -163,6 +163,9 @@ function resetNav(level) { nav.length = 0; if (level) nav.push(level); crumbs();
 /* ================= view switching ================= */
 const VIEWS = ['companyView', 'homeView', 'lobby', 'gameView', 'mcqView', 'codingView', 'companyHomeView', 'companyTrackView', 'companySectionView'];
 function show(viewId) {
+  if (viewId !== 'gameView' && window.OA_GAMES && window.OA_GAMES.stopTimer) {
+    window.OA_GAMES.stopTimer();
+  }
   VIEWS.forEach(v => { const n = $('#' + v); if (n) n.hidden = (v !== viewId); });
   window.scrollTo(0, 0);
 }

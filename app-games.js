@@ -16,8 +16,12 @@ function saveScore(game, level, score) {
 }
 
 const Games = {
-  current: 'maze', level: 'medium',
+  current: 'maze', level: 'medium', _activeTimer: null,
+  stopTimer() {
+    if (this._activeTimer) { clearInterval(this._activeTimer); this._activeTimer = null; }
+  },
   open(game) {
+    this.stopTimer();
     this.current = game;
     $('#gameTitle').textContent = { maze: 'Key Maze', math: 'Arithmetic Order', path: 'Matrix Flow Puzzle' }[game];
     $('#gameNumber').textContent = { maze: '01 / 03', math: '02 / 03', path: '03 / 03' }[game];
@@ -26,6 +30,7 @@ const Games = {
     window.OA_UI.show('gameView');
   },
   start() {
+    this.stopTimer();
     const seed = Date.now() & 0xffff;
     if (this.current === 'maze') this.maze(seed);
     else if (this.current === 'math') this.math(seed);
@@ -161,13 +166,14 @@ const Games = {
       }));
     }
     function startTimer() {
-      timer = setInterval(() => {
+      Games.stopTimer();
+      Games._activeTimer = setInterval(() => {
         remaining--; const el = $('#mtTime'); if (el) { el.textContent = remaining + 's'; const bar = $('.timer-bar i'); if (bar) bar.style.width = (remaining / secs * 100) + '%'; }
-        if (remaining <= 0) { clearInterval(timer); toast('Time up! Score 0'); render(); started = false; }
+        if (remaining <= 0) { Games.stopTimer(); toast('Time up! Score 0'); render(); started = false; }
       }, 1000);
     }
     function win() {
-      clearInterval(timer);
+      Games.stopTimer();
       const score = remaining * 10 + nVals * 5;
       saveScore('math', Games.level, score);
       toast('Sorted! Score ' + score);

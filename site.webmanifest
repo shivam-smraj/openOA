@@ -4,8 +4,8 @@
   "description": "Free, open-source online assessment practice: 1,798 questions with verified answer keys across Accenture, Cognizant, Infosys, Infineon, and Visa patterns.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#080a11",
-  "theme_color": "#080a11",
+  "background_color": "#111318",
+  "theme_color": "#111318",
   "icons": [
     {
       "src": "./favicon.svg",
