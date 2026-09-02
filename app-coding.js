@@ -10,16 +10,34 @@ let pyodideReady = null;
 function loadPyodideRuntime() {
   if (pyodideReady) return pyodideReady;
   pyodideReady = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'vendor/pyodide.js';
-    s.onload = async () => {
-      try {
-        const py = await loadPyodide({ indexURL: 'vendor/' });
-        resolve(py);
-      } catch (e) { reject(e); }
-    };
-    s.onerror = () => reject(new Error('pyodide load failed'));
-    document.head.appendChild(s);
+    function init(src, indexURL) {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = async () => {
+        try {
+          const py = await loadPyodide({
+            indexURL: indexURL,
+            lockFileURL: 'data:application/json,{"packages":{},"schema_version":"1"}'
+          });
+          resolve(py);
+        } catch (e) {
+          if (indexURL === 'vendor/') {
+            init('https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js', 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/');
+          } else {
+            reject(e);
+          }
+        }
+      };
+      s.onerror = () => {
+        if (src === 'vendor/pyodide.js') {
+          init('https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js', 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/');
+        } else {
+          reject(new Error('pyodide load failed'));
+        }
+      };
+      document.head.appendChild(s);
+    }
+    init('vendor/pyodide.js', 'vendor/');
   });
   return pyodideReady;
 }
