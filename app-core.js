@@ -253,9 +253,13 @@ function openSection(trackId, secId) {
     if (backBtn) backBtn.addEventListener('click', () => openTrack(trackId));
   } else {
     mount.innerHTML =
-      '<div class="section-head"><h2>' + esc(sec.title) + '</h2><p>' + questions.length + ' items' +
-      (done ? ' - ' + done + ' solved' : '') + ' - ' + esc(track.title) + '</p></div>' +
+      '<div class="mcq-appbar">' +
+      '<button class="mcq-back" type="button" data-back-track><span>&#8592;</span> ' + esc(track.title) + '</button>' +
+      '<div class="mcq-app-title"><h1>' + esc(sec.title) + '</h1><p>' + questions.length + ' items' + (done ? ' · ' + done + ' solved' : '') + ' · ' + esc(track.title) + '</p></div>' +
+      '</div>' +
       '<div id="sectionEngine"></div>';
+    const backBtn = mount.querySelector('[data-back-track]');
+    if (backBtn) backBtn.addEventListener('click', () => openTrack(trackId));
   }
   show('companySectionView');
   const engine = $('#sectionEngine');
@@ -571,22 +575,27 @@ const MCQ = {
 function openStats() {
   const body = $('#statsBody');
   const lines = [];
-  let totalDone = 0, totalCorrect = 0;
+  let totalDone = 0, totalCorrect = 0, totalQuestions = 0;
   Object.keys(S.banks).forEach(k => {
     const dn = bankDone(k), att = bankAttempted(k), tot = bankCount(k);
-    totalDone += att; totalCorrect += dn;
-    if (att) lines.push('<div class="stat-line"><span>' + esc(k) + '</span><span><b>' + dn + '</b> solved / ' + att + ' attempted / ' + tot + '</span></div>');
+    totalDone += att; totalCorrect += dn; totalQuestions += tot;
+    if (att || dn) {
+      const pct = tot ? Math.round((dn / tot) * 100) : 0;
+      lines.push('<div class="stat-line"><span>' + esc(k) + '</span><span><b>' + dn + '</b>/' + tot + ' (' + pct + '%)</span></div>');
+    }
   });
+  const overallPct = totalQuestions ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
   const scores = progress.scores || {};
   const scoreKeys = Object.keys(scores);
   const scoreLines = scoreKeys.length
-    ? '<div class="stat-line"><span>Puzzle bests</span><span>' + scoreKeys.map(k => esc(k) + ': <b>' + scores[k] + '</b>').join(' &middot; ') + '</span></div>'
+    ? '<div class="stat-line"><span>Puzzle Best Scores</span><span>' + scoreKeys.map(k => esc(k) + ': <b>' + scores[k] + '</b>').join(' &middot; ') + '</span></div>'
     : '';
   body.innerHTML =
-    '<div class="stat-line"><span>Total attempted</span><b>' + totalDone + '</b></div>' +
-    '<div class="stat-line"><span>Total solved correctly</span><b>' + totalCorrect + '</b></div>' +
+    '<div class="stat-line"><span>Total Questions in OA Open</span><b>' + totalQuestions.toLocaleString('en-US') + '</b></div>' +
+    '<div class="stat-line"><span>Total Attempted</span><b>' + totalDone.toLocaleString('en-US') + '</b></div>' +
+    '<div class="stat-line"><span>Total Solved Correctly</span><b>' + totalCorrect.toLocaleString('en-US') + ' (' + overallPct + '%)</b></div>' +
     scoreLines +
-    (lines.length ? '<div style="margin-top:10px;font-size:12px;color:var(--ink-dim)">By section:</div>' + lines.join('') : '<p class="status-line">No practice history yet - attempt some questions!</p>');
+    (lines.length ? '<div style="margin-top:14px;font-size:12px;font-weight:700;color:var(--accent)">Breakdown by Section:</div>' + lines.join('') : '<p class="status-line" style="margin-top:10px;color:var(--text-muted)">No practice history yet — start solving MCQs or coding problems!</p>');
   $('#statsDialog').showModal();
 }
 
@@ -623,7 +632,7 @@ function openAccentureMcq() {
   const qs = S.banks['accenture/mcq'] || [];
   if (nav.length > 1) nav.length = 1;
   push({ label: 'MCQ', go: openAccentureMcq });
-  $('#mcqTitle').textContent = 'Accenture MCQ';
+  $('#mcqTitle').textContent = 'Accenture MCQ Practice';
   $('#mcqProgress').textContent = qs.length + ' available / answer keys included';
   MCQ.mount($('#mcqEngineRoot'), qs, 'Accenture MCQ');
   show('mcqView');
@@ -650,14 +659,14 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ---- save / load progress to a file ---- */
   on('#statsSaveFile', 'click', () => {
     const data = Object.assign({}, progress, { done: Array.from(progress.done), bookmarks: Array.from(progress.bookmarks) });
-    const blob = new Blob([JSON.stringify({ app: 'oa.bigdas.com', version: 1, exportedAt: new Date().toISOString(), progress: data }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ app: 'OA Open', version: 1, exportedAt: new Date().toISOString(), progress: data }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     const d = new Date();
-    a.download = 'oa-progress-' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + '.json';
+    a.download = 'oa-open-progress-' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + '.json';
     a.click();
     URL.revokeObjectURL(a.href);
-    toast('Progress saved to file.');
+    toast('Progress backup saved.');
   });
   const loadInput = document.querySelector('#statsLoadFile');
   if (loadInput) loadInput.addEventListener('change', function () {

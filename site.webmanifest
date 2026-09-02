@@ -1,11 +1,11 @@
 {
-  "name": "OA Practice Desk",
-  "short_name": "OA.desk",
-  "description": "Free online-assessment practice: 1,798 questions with answer keys across five hiring patterns. Runs fully in your browser.",
+  "name": "OA Open — Free Online Assessment Practice Platform",
+  "short_name": "OA Open",
+  "description": "Free, open-source online assessment practice: 1,798 questions with verified answer keys across Accenture, Cognizant, Infosys, Infineon, and Visa patterns.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f7f4ed",
-  "theme_color": "#f7f4ed",
+  "background_color": "#080a11",
+  "theme_color": "#080a11",
   "icons": [
     {
       "src": "./favicon.svg",

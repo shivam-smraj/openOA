@@ -1,35 +1,36 @@
-# OpenOA — Free Online Assessment Practice Desk
+# OA Open — Free Online Assessment Practice Platform
 
-OpenOA is a modern, lightweight, offline-first practice platform for technical and aptitude Online Assessments (OAs). It contains **1,700+ practice questions** with verified answer keys, interactive coding drills with in-browser execution (Python via Pyodide, SQL via SQLite WASM, and JavaScript), listening comprehension tests, game-based aptitude puzzles, and optional AI explanations via OpenRouter / OpenAI / Claude / Gemini.
+OA Open is an ultra-fast, modern, offline-first practice platform for technical and aptitude Online Assessments (OAs). It contains **1,798+ curated practice questions** with verified answer keys, interactive coding drills with in-browser WebAssembly execution (Python via Pyodide, SQL via SQLite WASM, and JavaScript), listening comprehension audio drills, game-based aptitude puzzles, and optional AI explanations via OpenRouter, OpenAI, Claude, or Gemini.
 
 ---
 
 ## ✨ Features
 
 - 🎯 **Company OA Question Banks**: Curated tests simulating assessment patterns for top tech companies:
-  - Accenture (Critical Reasoning, Abstract Reasoning, Coding)
-  - Cognizant (Quantitative, Verbal, Listening Drills with audio)
-  - Infosys (Pseudocode, Puzzle Solving, Verbal, Reasoning)
-  - Infineon (Core Electronics, Microcontrollers, Digital Logic, C/C++)
-  - Visa (Algorithms, Data Structures, SQL, System Design)
+  - **Accenture**: Critical Reasoning, Abstract Reasoning, MS Office, Networking & Cloud, Core CS, and Coding Lab (111 tasks).
+  - **Cognizant**: Quantitative, Verbal, Listening Drills with 30 synced audio clips, AI Prompt Engineering, and RAG Drills.
+  - **Infosys**: Pseudocode Tracing, Lateral Logic Puzzles, Verbal, Reasoning, and Specialist Programmer Coding.
+  - **Infineon**: Core Electronics, Microcontrollers (8051/ARM), Digital Logic, Embedded C/C++.
+  - **Visa**: Algorithms, Data Structures, and Problem Solving across 33 topic families (90 problems).
 - ⚡ **In-Browser Code Execution**:
   - **Python**: Real client-side Python execution using Pyodide WebAssembly.
   - **SQL**: In-memory relational database powered by SQL.js (SQLite WASM).
-  - **JavaScript**: Safe sandbox execution.
-- 🎧 **Cognizant Listening Drills**: Includes 30 high-quality audio clips and synced comprehension questions.
-- 🧩 **Interactive Aptitude Games & Drills**: Abstract pattern recognition, grid puzzles, and speed tests.
+  - **JavaScript**: Sandboxed instant execution.
+  - **Frontend**: Live HTML, CSS, and JS preview sandbox.
+- 🎧 **Cognizant Listening Drills**: 30 high-quality audio clips and synced comprehension questions.
+- 🧩 **Interactive Aptitude Games & Drills**: Key Maze (with responsive D-pad & keyboard controls), Arithmetic Order (speed mental math), and Matrix Flow.
 - 🤖 **AI Explanations & Mock Reviews**:
-  - OpenRouter OAuth (1-click sign in / BYOK)
-  - Support for OpenAI, Anthropic Claude, Google Gemini, and DeepSeek keys.
-  - Instant hint generation, code reviews, and solution breakdowns.
-- 🎨 **Themes**:
-  - **Swiss** (Clean minimalist dark / cyan)
-  - **Paper** (Warm editorial cream / rust)
-  - **Slate** (Dark graphite / amber)
-  - **Terminal** (Hacker green phosphor / monospace)
+  - OpenRouter PKCE OAuth (1-click sign-in with zero manual key copying).
+  - Direct support for OpenAI, Anthropic Claude, Google Gemini, Groq, and Sarvam AI.
+  - In-browser speech recognition (STT) and voice feedback (TTS).
+- 🎨 **Modern Themes**:
+  - **Cyber (Default)**: Sleek obsidian dark (`#080a11`), electric cyan (`#00e5ff`), and vibrant violet glow.
+  - **Paper**: Warm ceramic light, deep charcoal ink, and terracotta rust accent.
+  - **Slate**: Dark graphite with warm amber accents.
+  - **Terminal**: Phosphor emerald green with high-contrast monospace styling.
 - 💾 **100% Offline-Capable & Privacy First**:
-  - All progress, attempts, and API keys are stored locally in your browser (`localStorage`).
-  - No account registration required. Zero tracking.
+  - All progress, attempts, notes, bookmarks, and API keys are stored locally in your browser (`localStorage`).
+  - No account registration required. Zero telemetry, zero tracking.
 
 ---
 
@@ -37,7 +38,7 @@ OpenOA is a modern, lightweight, offline-first practice platform for technical a
 
 ### Option 1: Direct File Serving / Local Server
 
-Since OpenOA is built with standard web technologies (HTML5, Vanilla CSS, JS, WebAssembly), you can run it using any static HTTP server.
+Since OA Open is built with standard web standards (HTML5, Vanilla CSS, JS, WebAssembly), you can run it using any static HTTP server:
 
 ```bash
 # Using Python 3 built-in server
@@ -51,9 +52,9 @@ Open your browser and navigate to `http://localhost:8080`.
 
 ### Option 2: Deploying to Vercel / Cloudflare Pages / GitHub Pages
 
-OpenOA is pre-configured for static hosting:
-- Includes `vercel.json` with security headers and WASM MIME types.
-- Works out of the box on GitHub Pages, Cloudflare Pages, Netlify, or AWS S3.
+OA Open is pre-configured for instant zero-configuration static deployment:
+- Includes `vercel.json` with security headers and `.wasm` WebAssembly MIME types.
+- Works out of the box on Vercel (`npx vercel`), Cloudflare Pages, Netlify, or GitHub Pages.
 
 ---
 
@@ -61,15 +62,15 @@ OpenOA is pre-configured for static hosting:
 
 ```
 ├── index.html              # Main application shell & UI views
-├── style.css               # Design system & theme stylesheets
+├── style.css               # Modern design system & theme engine
 ├── app.js                  # App bootstrap and initialization
-├── app-core.js             # Navigation, question viewer, state management
-├── app-coding.js           # Code runner (Pyodide WASM, SQL.js, CodeMirror editor)
+├── app-core.js             # Navigation, question viewer, state management, progress backup
+├── app-coding.js           # In-browser Code Studio (Pyodide WASM, SQL.js, CodeMirror editor)
 ├── app-games.js            # Interactive aptitude games & puzzles
-├── app-ai.js               # AI assistant & OpenRouter integration
-├── data.js                 # Question banks & assessment datasets
-├── audio/                  # Audio files for listening comprehension drills
-├── vendor/                 # Offline dependencies (Pyodide, CodeMirror, SQL WASM)
+├── app-ai.js               # AI assistant & OpenRouter PKCE OAuth integration
+├── data.js                 # 1,798 curated questions & assessment datasets
+├── audio/                  # 30 audio clips for Cognizant listening drills
+├── vendor/                 # Offline dependencies (Pyodide, CodeMirror, SQL.js WASM)
 ├── site.webmanifest        # PWA manifest
 ├── vercel.json             # Vercel deployment configuration
 └── README.md
@@ -79,7 +80,7 @@ OpenOA is pre-configured for static hosting:
 
 ## 🔒 Security & Privacy
 
-- All assessment practice is done strictly client-side.
+- All assessment practice is executed strictly client-side.
 - Your progress data never leaves your device.
 - API keys (OpenRouter / OpenAI / Anthropic / Gemini) are saved only in your local browser storage and used for direct API calls to the respective provider.
 
@@ -87,4 +88,4 @@ OpenOA is pre-configured for static hosting:
 
 ## 📄 License
 
-MIT License — Feel free to use, share, and contribute!
+MIT License — Free for everyone, forever.

@@ -1,4 +1,4 @@
-/* OA Practice Desk - puzzle games: Key Maze, Arithmetic Order, Matrix Flow */
+/* OA Open — puzzle games: Key Maze, Arithmetic Order, Matrix Flow */
 (function () {
 'use strict';
 const { toast, esc, $, $$ } = window.OA_UI;

@@ -1,4 +1,4 @@
-/* OA Practice Desk - bootstrap: theme switcher + module check */
+/* OA Open — bootstrap: theme switcher + module check */
 (function () {
 'use strict';
 function ready(fn) { if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
@@ -20,7 +20,7 @@ ready(function () {
   const pop = document.getElementById('themePop');
   function current() {
     let t = root.getAttribute('data-theme');
-    if (THEMES.indexOf(t) < 0) { t = 'swiss'; root.setAttribute('data-theme', t); }
+    if (THEMES.indexOf(t) < 0) { t = 'slate'; root.setAttribute('data-theme', t); }
     return t;
   }
   function markActive() {
@@ -54,15 +54,15 @@ ready(function () {
 
   /* ---------- module load check ---------- */
   const ok = window.OA_BANKS && window.OA_UI && window.OA_AI && window.OA_GAMES && window.OA_CODING;
-  if (!ok) { console.error('module load failure', { core: !!window.OA_UI, ai: !!window.OA_AI, games: !!window.OA_GAMES, coding: !!window.OA_CODING }); }
+  if (!ok) { console.error('OA Open: module load failure', { core: !!window.OA_UI, ai: !!window.OA_AI, games: !!window.OA_GAMES, coding: !!window.OA_CODING }); }
   let total = 0, answered = 0;
   Object.keys(window.OA_BANKS.banks).forEach(k => {
     total += window.OA_BANKS.banks[k].length;
     window.OA_BANKS.banks[k].forEach(x => { if (window.OA_UI.progress.answers[x.id]) answered++; });
   });
   const foot = document.getElementById('homeFooterStats');
-  if (foot) foot.textContent = 'oa.bigdas.com - ' + total.toLocaleString('en-US') + ' practice items' +
-    (answered ? ' - ' + answered + ' attempted in this browser' : '') + ' - free for everyone, forever.';
-  console.log('OA desk ready -', total, 'items.');
+  if (foot) foot.textContent = 'OA Open — ' + total.toLocaleString('en-US') + ' practice items' +
+    (answered ? ' — ' + answered + ' attempted in this browser' : '') + ' — free for everyone, forever.';
+  console.log('OA Open ready —', total, 'items loaded.');
 });
 })();

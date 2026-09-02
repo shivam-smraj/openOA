@@ -1,4 +1,4 @@
-/* OA Practice Desk - AI-graded sections with bring-your-own API keys */
+/* OA Open — AI-graded sections with bring-your-own API keys */
 (function () {
 'use strict';
 const { toast, esc, $, $$ } = window.OA_UI;

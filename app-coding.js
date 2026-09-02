@@ -1,4 +1,4 @@
-/* OA Practice Desk - coding runner: python (pyodide), js, sql (sql.js), frontend preview */
+/* OA Open — coding runner: python (pyodide), js, sql (sql.js), frontend preview */
 (function () {
 'use strict';
 const { toast, esc, $, $$ } = window.OA_UI;
