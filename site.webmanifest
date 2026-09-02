@@ -1,0 +1,17 @@
+{
+  "name": "OA Practice Desk",
+  "short_name": "OA.desk",
+  "description": "Free online-assessment practice: 1,798 questions with answer keys across five hiring patterns. Runs fully in your browser.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f4ed",
+  "theme_color": "#f7f4ed",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
