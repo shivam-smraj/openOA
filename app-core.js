@@ -167,6 +167,11 @@ function show(viewId) {
     window.OA_GAMES.stopTimer();
   }
   VIEWS.forEach(v => { const n = $('#' + v); if (n) n.hidden = (v !== viewId); });
+  if (viewId === 'codingView' || viewId === 'companySectionView') {
+    document.body.classList.add('has-active-coding');
+  } else {
+    document.body.classList.remove('has-active-coding');
+  }
   window.scrollTo(0, 0);
 }
 
@@ -700,25 +705,17 @@ document.addEventListener('DOMContentLoaded', () => {
     fr.readAsText(f);
   });
 
-  /* ---- topbar OpenRouter sign-in state ---- */
-  const orTop = $('#orTopButton');
-  function refreshOrTop() {
+  /* ---- topbar AI status ---- */
+  function refreshAiState() {
+    const btn = $('#settingsButton');
+    if (!btn) return;
     const k = (window.OA_KEYS && window.OA_KEYS.keys) || {};
-    const connected = !!(k.llm && k.llm.key && k.llm.provider === 'openrouter');
-    if (!orTop) return;
-    orTop.textContent = connected ? 'AI connected \u2713' : 'Sign in with OpenRouter';
-    orTop.classList.toggle('connected', connected);
-    orTop.title = connected ? 'AI feedback active - manage keys via AI keys' : 'One-click sign-in to enable AI feedback for prompts and speech';
+    btn.title = k.userKey
+      ? 'Gemini active (personal key override)'
+      : 'Gemini active (built-in keys rotation ready)';
   }
-  refreshOrTop();
-  if (orTop) orTop.addEventListener('click', () => {
-    const k = (window.OA_KEYS && window.OA_KEYS.keys) || {};
-    if (k.llm && k.llm.key && k.llm.provider === 'openrouter') { openSettings(); }
-    else if (window.OA_AI && window.OA_AI.orStartLogin) { window.OA_AI.orStartLogin(); }
-  });
-  // refresh state after OAuth callback completes (delayed) and on dialog saves
-  setTimeout(refreshOrTop, 1200);
-  document.addEventListener('oa-keys-changed', refreshOrTop);
+  refreshAiState();
+  document.addEventListener('oa-keys-changed', refreshAiState);
 });
 
 window.OA_UI = { toast, esc, show, showCompanies, openCompany, openTrack, openSection, progress, saveProgress, recordAnswer, MCQ, COMPANIES, $, $$, _nav: nav, _crumbs: crumbs };

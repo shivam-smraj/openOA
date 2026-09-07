@@ -79,7 +79,6 @@
           </button>
         </div>
       </div>
-      <button class="or-top-button" id="orTopButton" type="button">Sign in with OpenRouter</button>
       <button class="icon-button" id="statsButton" type="button" title="Your practice progress">
         <span class="btn-icon">📊</span>
         <span>Progress</span>
@@ -373,8 +372,11 @@
       <!-- Column 1: Rail -->
       <aside class="coding-rail" id="codingRail">
         <div class="coding-rail-head">
-          <span class="crh-label">Problem Set</span>
-          <span class="crh-cat" id="questionSetTitle">DSA</span>
+          <div class="crh-title-group">
+            <span class="crh-label">Problem Set</span>
+            <span class="crh-cat" id="questionSetTitle">DSA</span>
+          </div>
+          <button type="button" class="rail-toggle-btn" id="railToggleBtn" title="Collapse problem list (wider code view)">◀</button>
         </div>
         <div class="coding-rail-list" id="codingQuestionList" role="tablist" aria-label="Problems"></div>
         <div class="coding-rail-foot"><span id="codingStripPosition"></span></div>
@@ -392,7 +394,7 @@
       <!-- Column 3: Editor Sheet -->
       <section class="editor-sheet">
         <div class="editor-toolbar">
-          <div class="editor-lang-wrap">
+          <div class="editor-lang-wrap" id="editorLangWrap">
             <span class="editor-code-icon"><code>&lt;/&gt;</code></span>
             <select id="editorLanguageSelect" class="editor-lang-select" aria-label="Select Programming Language">
               <option value="python">Python 3 (Pyodide WASM)</option>
@@ -401,31 +403,42 @@
             </select>
           </div>
           <div id="frontendFileTabs" class="frontend-file-tabs" hidden>
-            <button class="file-tab active" data-file-tab="html">&lt;&gt; index.html</button>
-            <button class="file-tab" data-file-tab="css"># style.css</button>
-            <button class="file-tab" data-file-tab="js">JS script.js</button>
+            <button class="file-tab active" data-file-tab="html" title="Edit HTML structure">⟨⟩ index.html</button>
+            <button class="file-tab" data-file-tab="css" title="Edit CSS styles"># style.css</button>
+            <button class="file-tab" data-file-tab="js" title="Edit JavaScript logic">JS script.js</button>
           </div>
           <div class="editor-actions">
             <button id="resetCodeButton" class="btn-editor-action" type="button">Reset</button>
-            <button id="runCodeButton" class="btn-editor-run" type="button">Run Solution ▶</button>
+            <button id="runCodeButton" class="btn-editor-run" type="button">Run Preview ▶</button>
           </div>
         </div>
-        <div class="code-editor-wrap">
+        <!-- Single-file editor (DSA / SQL / non-frontend) -->
+        <div class="code-editor-wrap" id="singleEditorWrap">
           <div id="codeEditor" class="code-editor"></div>
+        </div>
+        <!-- Multi-file editors (frontend mode only) -->
+        <div class="code-editor-wrap fe-editor-wrap" id="feEditorWrap" hidden>
+          <div id="cm-html-host" class="code-editor fe-editor-pane" data-fe-pane="html"></div>
+          <div id="cm-css-host"  class="code-editor fe-editor-pane" data-fe-pane="css"  hidden></div>
+          <div id="cm-js-host"   class="code-editor fe-editor-pane" data-fe-pane="js"   hidden></div>
         </div>
         <section id="consolePane" class="console-pane">
           <header class="console-toolbar">
             <div class="console-tabs" role="tablist">
               <button type="button" class="console-tab active" data-acctab="tests">Test Cases</button>
-              <button type="button" class="console-tab" data-acctab="result">Execution Result</button>
+              <button type="button" class="console-tab" data-acctab="result" id="accResultTab">Result</button>
               <button type="button" class="console-tab" data-acctab="preview" id="accPreviewTab" hidden>Live Preview</button>
+              <button type="button" class="console-tab" data-acctab="target" id="accTargetTab" hidden>Target UI</button>
             </div>
             <span class="console-runtime-badge" id="accRuntimeBadge">Python 3 · browser WASM</span>
           </header>
           <div class="console-body">
             <div id="accTestCases" class="console-test-cases"></div>
-            <div id="runOutput" class="run-output" hidden>Click "Run Solution ▶" to execute your code against test cases.</div>
-            <iframe id="frontendPreview" class="frontend-preview" title="preview" sandbox="allow-scripts" hidden></iframe>
+            <div id="runOutput" class="run-output" hidden>Click "Run Preview ▶" to execute your code.</div>
+            <!-- Live preview (student's rendered code) -->
+            <iframe id="frontendPreview" class="frontend-preview" title="Live preview of your code" sandbox="allow-scripts allow-same-origin" hidden></iframe>
+            <!-- Target answer preview (expected UI) -->
+            <iframe id="targetPreview" class="frontend-preview target-answer-preview" title="Target answer preview" sandbox="allow-scripts" hidden></iframe>
           </div>
         </section>
       </section>
@@ -453,70 +466,41 @@
   <dialog id="settingsDialog" class="auth-dialog">
     <div class="auth-dialog-inner">
       <button class="dialog-close" id="settingsClose" aria-label="Close">&times;</button>
-      <div class="dialog-brand">OA Open · AI Provider Configuration</div>
-      <h2>Connect Your AI Provider</h2>
-      <div class="or-oauth-box" id="orOAuthBox">
-        <div class="or-oauth-copy">
-          <strong>1-Click: Sign in with OpenRouter</strong>
-          <span>Instant authorization with zero API keys to copy. Securely stored in your browser and revocable anytime at openrouter.ai/keys.</span>
+      <div class="dialog-brand">OA Open &middot; AI Configuration</div>
+      <h2>Google Gemini API</h2>
+
+      <!-- Built-in keys status banner -->
+      <div class="gemini-builtin-banner" id="geminiBuiltinBanner">
+        <span class="gbb-icon">✦</span>
+        <div>
+          <strong>Built-in keys active</strong>
+          <span>3 Gemini API keys are pre-loaded and rotate automatically. Frontend AI review works out of the box &mdash; no setup needed.</span>
         </div>
-        <button id="orLoginButton" class="or-login-button" type="button">Sign in with OpenRouter</button>
-        <button id="orLogoutButton" class="or-logout-button" type="button" hidden>Disconnect OpenRouter</button>
+        <span class="gbb-dot" id="gbbDot"></span>
       </div>
-      <p class="settings-copy or-divider">Or bring your own API key directly:</p>
-      <p class="settings-copy">OA Open executes AI code explanations, speech evaluation, and prompt grading directly from your browser with zero proxy servers. Keys remain safely in your device's localStorage.</p>
-      <div class="settings-tabs">
-        <button class="settings-tab active" data-stab="llm">LLM (Feedback & Explanations)</button>
-        <button class="settings-tab" data-stab="tts">Text-to-Speech (TTS)</button>
-        <button class="settings-tab" data-stab="stt">Speech-to-Text (STT)</button>
-      </div>
-      <div id="stab-llm" class="settings-pane">
-        <label>Provider
-          <select id="llmProvider">
-            <option value="openai">OpenAI — api.openai.com</option>
-            <option value="groq">Groq — api.groq.com (Ultra-fast + Free Tier)</option>
-            <option value="openrouter">OpenRouter — openrouter.ai</option>
-            <option value="gemini">Google Gemini — generativelanguage.googleapis.com</option>
-            <option value="sarvam">Sarvam AI — api.sarvam.ai</option>
-            <option value="anthropic">Anthropic — api.anthropic.com (Requires CORS proxy)</option>
-            <option value="custom">Custom (OpenAI-Compatible Endpoint)</option>
+
+      <p class="settings-copy" style="margin-top:14px">You can optionally paste your own Gemini API key below to override the built-in keys. Leave blank to keep using the built-in rotation.</p>
+
+      <div class="settings-pane gemini-pane">
+        <label>Your Gemini API Key <small style="color:var(--text-muted)">(optional override)</small>
+          <input id="llmKey" type="password" placeholder="AQ... or AIzaSy... (from aistudio.google.com)" autocomplete="off">
+        </label>
+        <label>Model
+          <select id="llmModel" class="editor-lang-select" style="width:100%;margin-top:4px">
+            <option value="gemini-3.6-flash">gemini-3.6-flash (default &mdash; ultra-fast &amp; smart)</option>
+            <option value="gemini-3.5-flash">gemini-3.5-flash (fast &amp; reliable)</option>
+            <option value="gemini-3.8-flash">gemini-3.8-flash (latest preview)</option>
+            <option value="gemini-2.5-pro">gemini-2.5-pro (deep reasoning)</option>
           </select>
         </label>
-        <label>Model <input id="llmModel" placeholder="gpt-4o-mini / llama-3.3-70b-versatile / gemini-1.5-flash"></label>
-        <label>API Key <input id="llmKey" type="password" placeholder="sk-..."></label>
-        <label id="llmBaseUrlWrap">Base URL <input id="llmBaseUrl" placeholder="https://api.example.com/v1"></label>
       </div>
-      <div id="stab-tts" class="settings-pane" hidden>
-        <label>Provider
-          <select id="ttsProvider">
-            <option value="browser">Browser Built-in Voice (No Key Required)</option>
-            <option value="openrouter-tts">OpenRouter (voxtral)</option>
-            <option value="openai">OpenAI tts-1</option>
-            <option value="sarvam">Sarvam AI (saarika / bulbul)</option>
-            <option value="custom">Custom (OpenAI-compatible /audio/speech)</option>
-          </select>
-        </label>
-        <label>Model <input id="ttsModel" placeholder="mistralai/voxtral-mini-tts-2603 (OpenRouter)"></label>
-        <label>API Key <input id="ttsKey" type="password" placeholder="Key (not needed for browser voice)"></label>
-        <label>Voice <input id="ttsVoice" placeholder="en_paul_neutral / alloy / meera"></label>
-      </div>
-      <div id="stab-stt" class="settings-pane" hidden>
-        <label>Provider
-          <select id="sttProvider">
-            <option value="browser">Browser Built-in (Web Speech API)</option>
-            <option value="openrouter-stt">OpenRouter (whisper-large-v3)</option>
-            <option value="openai">OpenAI whisper-1</option>
-            <option value="sarvam">Sarvam AI saarika</option>
-            <option value="custom">Custom (OpenAI-compatible /audio/transcriptions)</option>
-          </select>
-        </label>
-        <label>Model <input id="sttModel" placeholder="openai/whisper-large-v3 (OpenRouter)"></label>
-        <label>API Key <input id="sttKey" type="password" placeholder="Key"></label>
-      </div>
-      <p class="settings-note">All keys are stored strictly in client-side localStorage. Direct API calls are dispatched from your browser.</p>
+
+      <p class="settings-note">Your key is stored only in this browser&rsquo;s localStorage and sent directly to <code>generativelanguage.googleapis.com</code> &mdash; never to any proxy or third party.</p>
+
       <div class="settings-actions">
         <button id="settingsTest" class="purchase-button">Test Connection</button>
-        <button id="settingsSave" class="access-gate-button">Save Configuration</button>
+        <button id="settingsSave" class="access-gate-button">Save</button>
+        <button id="settingsClear" class="purchase-button danger">Clear Key</button>
       </div>
       <p id="settingsStatus" role="status"></p>
     </div>

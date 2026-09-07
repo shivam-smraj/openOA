@@ -1,13 +1,22 @@
-/* OA Open — AI-graded sections with bring-your-own API keys */
+/* OA Open — AI-graded sections using Google Gemini */
 (function () {
 'use strict';
 const { toast, esc, $, $$ } = window.OA_UI;
 const pGet = (k) => ((window.OA_UI.progress || {})[k]) || {};
 const progressStore = () => window.OA_UI.progress;
 
-/* ---------- key store ---------- */
-const KEY_STORE = 'oa-ai-keys-v1';
-let keys = { llm: { provider: 'openai', model: 'gpt-4o-mini', key: '', baseUrl: '' }, tts: { provider: 'browser', key: '', voice: 'alloy' }, stt: { provider: 'browser', key: '' } };
+/* ---------- Built-in Gemini key rotation (zero setup needed) ---------- */
+const _GEMINI_KEYS = [
+  'AQ.Ab8RN6Kkpbe2CFBQ_hdrXKv7KxwiP1gPOB2eJOkwfOVY0sHWkg',
+  'AQ.Ab8RN6KjogxIKHRvHRwsaqXzyNdBCaD_gYVPccPQklGwUyH8xA',
+  'AQ.Ab8RN6JVmSygYCHsY9W9GizAnh6eaXDtTv1OGaDyifRItaykig'
+];
+let _gkIdx = 0;
+function _nextGeminiKey() { return _GEMINI_KEYS[_gkIdx++ % _GEMINI_KEYS.length]; }
+
+/* ---------- User key store (optional personal override) ---------- */
+const KEY_STORE = 'oa-ai-keys-v2';
+let keys = { userKey: '', model: 'gemini-3.6-flash' };
 try {
   const k = JSON.parse(localStorage.getItem(KEY_STORE) || 'null');
   if (k) keys = Object.assign(keys, k);
@@ -15,180 +24,49 @@ try {
 function saveKeys() { try { localStorage.setItem(KEY_STORE, JSON.stringify(keys)); } catch (e) {} }
 window.OA_KEYS = { keys, saveKeys };
 
-/* ---------- OpenRouter OAuth PKCE (no secret, no backend) ---------- */
-const OR_PKCE_KEY = 'oa-or-pkce-verifier';
-const OR_KEY_FLAG = 'oa-or-oauth'; // marks keys obtained via OAuth
 
-function b64url(bytes) {
-  return btoa(String.fromCharCode.apply(null, bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-async function orStartLogin() {
-  // OAuth requires a real http(s) origin - file:// pages can't receive the redirect back
-  if (location.protocol === 'file:') {
-    alert('OpenRouter sign-in needs the site to be served over http(s).\n\n' +
-      'You are currently opening index.html directly from disk (file://).\n\n' +
-      'To use AI sign-in, run a tiny local server and open the site through it:\n\n' +
-      '  cd offline_site\n  npx serve .\n\nthen visit http://localhost:3000 and try again.\n' +
-      '(Everything else in the app already works from file:// - only the sign-in redirect needs a server.)');
-    return;
-  }
-  // 1. generate code_verifier (43-128 chars, unreserved chars)
-  const raw = crypto.getRandomValues(new Uint8Array(32));
-  const verifier = b64url(raw);
-  // 2. S256 code_challenge = base64url(sha256(verifier))
-  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-  const challenge = b64url(new Uint8Array(hash));
-  sessionStorage.setItem(OR_PKCE_KEY, verifier);
-  const callback = location.origin + location.pathname;
-  const url = 'https://openrouter.ai/auth?callback_url=' + encodeURIComponent(callback) +
-    '&code_challenge=' + encodeURIComponent(challenge) + '&code_challenge_method=S256';
-  location.href = url;
-}
-
-async function orHandleCallback() {
-  const params = new URLSearchParams(location.search);
-  const code = params.get('code');
-  if (!code) return false;
-  const verifier = sessionStorage.getItem(OR_PKCE_KEY);
-  if (!verifier) { toast('Login expired - try again.'); return true; }
-  sessionStorage.removeItem(OR_PKCE_KEY);
-  try {
-    const r = await fetch('https://openrouter.ai/api/v1/auth/keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, code_verifier: verifier, code_challenge_method: 'S256' })
+/* ---------- Core Gemini API caller ---------- */
+async function _geminiCall(prompt, system, modelOverride) {
+  const model = modelOverride || keys.model || 'gemini-3.6-flash';
+  const keysToTry = keys.userKey ? [keys.userKey, ..._GEMINI_KEYS] : _GEMINI_KEYS;
+  let lastErr = 'No keys';
+  for (const k of keysToTry) {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + k;
+    const body = JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+      generationConfig: { temperature: 0.2 }
     });
-    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 150));
-    const { key } = await r.json();
-    if (!key) throw new Error('no key in response');
-    keys.llm = { provider: 'openrouter', model: keys.llm.model || 'openai/gpt-4o-mini', key, baseUrl: '' };
-    keys.tts = { provider: 'openrouter-tts', key, voice: keys.tts.voice || '' };
-    keys.stt = { provider: 'openrouter-stt', key };
-    saveKeys();
-    history.replaceState(null, '', location.pathname);
-    // make the success obvious: open settings + persist a status message (toast alone is easy to miss)
-    sessionStorage.setItem('oa-or-just-connected', '1');
-    toast('OpenRouter connected - all AI features unlocked.');
-    window.OA_AI.openSettings && window.OA_AI.openSettings();
-    return true;
-  } catch (e) {
-    toast('OpenRouter login failed: ' + e.message);
-    history.replaceState(null, '', location.pathname);
-    return true;
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      if (!r.ok) { lastErr = 'Gemini HTTP ' + r.status + ': ' + (await r.text()).slice(0, 120); continue; }
+      const j = await r.json();
+      const text = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts[0].text;
+      if (!text) { lastErr = 'Empty response'; continue; }
+      return text;
+    } catch (e) { lastErr = e.message; }
   }
+  throw new Error('Gemini call failed: ' + lastErr);
 }
 
-function orDisconnect() {
-  keys.llm.key = ''; keys.tts.key = ''; keys.stt.key = '';
-  saveKeys();
-  toast('Disconnected from OpenRouter.');
-}
+/* Backward-compat: llmChat is used by speech/prompt graders */
+async function llmChat(system, user) { return _geminiCall(user, system); }
 
-const PROVIDERS = {
-  llm: {
-    openai:    { url: (m) => 'https://api.openai.com/v1/chat/completions', auth: 'bearer', model: true },
-    groq:      { url: () => 'https://api.groq.com/openai/v1/chat/completions', auth: 'bearer', model: true },
-    openrouter:{ url: () => 'https://openrouter.ai/api/v1/chat/completions', auth: 'bearer', model: true },
-    gemini:    { url: (m) => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent?key=KEY', auth: 'query', model: true },
-    sarvam:    { url: () => 'https://api.sarvam.ai/v1/chat/completions', auth: 'bearer', model: true },
-    anthropic: { url: () => 'https://api.anthropic.com/v1/messages', auth: 'x-api-key', model: true },
-    custom:    { url: (m, base) => (base || 'https://api.example.com/v1') + '/chat/completions', auth: 'bearer', model: true }
-  },
-  tts: {
-    openai:  { url: () => 'https://api.openai.com/v1/audio/speech', auth: 'bearer' },
-    sarvam:  { url: () => 'https://api.sarvam.ai/v1/text-to-speech', auth: 'bearer' },
-    'openrouter-tts': { url: () => 'https://openrouter.ai/api/v1/audio/speech', auth: 'bearer' },
-    custom:  { url: (m, base) => (base || '') + '/audio/speech', auth: 'bearer' }
-  },
-  stt: {
-    openai:  { url: () => 'https://api.openai.com/v1/audio/transcriptions', auth: 'bearer' },
-    sarvam:  { url: () => 'https://api.sarvam.ai/v1/speech-to-text', auth: 'bearer' },
-    'openrouter-stt': { url: () => 'https://openrouter.ai/api/v1/audio/transcriptions', auth: 'bearer' },
-    custom:  { url: (m, base) => (base || '') + '/audio/transcriptions', auth: 'bearer' }
-  }
-};
 
-async function llmChat(system, user) {
-  const cfg = keys.llm;
-  if (!cfg.key) throw new Error('No LLM key set - open "AI keys" (top right) and add one, or use self-grade mode.');
-  const p = PROVIDERS.llm[cfg.provider] || PROVIDERS.llm.custom;
-  let url = p.url(cfg.model, cfg.baseUrl).replace('KEY', encodeURIComponent(cfg.key));
-  const headers = { 'Content-Type': 'application/json' };
-  if (p.auth === 'bearer') headers['Authorization'] = 'Bearer ' + cfg.key;
-  if (p.auth === 'x-api-key') { headers['x-api-key'] = cfg.key; headers['anthropic-version'] = '2023-06-01'; }
-  let body;
-  if (cfg.provider === 'gemini') {
-    body = JSON.stringify({ contents: [{ parts: [{ text: user }] }], systemInstruction: { parts: [{ text: system }] } });
-  } else if (cfg.provider === 'anthropic') {
-    body = JSON.stringify({ model: cfg.model, max_tokens: 1024, system: system, messages: [{ role: 'user', content: user }] });
-  } else {
-    body = JSON.stringify({ model: cfg.model || 'gpt-4o-mini', messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: 0.2 });
-  }
-  const r = await fetch(url, { method: 'POST', headers, body });
-  if (!r.ok) throw new Error('LLM HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200));
-  const j = await r.json();
-  if (cfg.provider === 'gemini') return (j.candidates && j.candidates[0].content.parts[0].text) || '(empty)';
-  if (cfg.provider === 'anthropic') return (j.content && j.content[0].text) || '(empty)';
-  return (j.choices && j.choices[0].message.content) || '(empty)';
-}
-
+/* ---------- TTS: browser built-in speech synthesis ---------- */
 async function ttsSpeak(text, onPlay) {
-  const cfg = keys.tts;
-  if (cfg.provider === 'browser' || !cfg.key) {
-    try { const u = new SpeechSynthesisUtterance(text); speechSynthesis.speak(u); return 'browser'; }
-    catch (e) { throw new Error('Browser speech synthesis unavailable'); }
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    speechSynthesis.speak(u);
+    return 'browser';
+  } catch (e) {
+    throw new Error('Browser speech synthesis unavailable');
   }
-  const p = PROVIDERS.tts[cfg.provider] || PROVIDERS.tts.custom;
-  const url = p.url(cfg.voice, cfg.baseUrl);
-  const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.key };
-  let body;
-  if (cfg.provider === 'sarvam') {
-    body = JSON.stringify({ inputs: [text], target_language_code: 'en-IN', speaker: cfg.voice || 'meera' });
-  } else if (cfg.provider === 'openrouter-tts') {
-    body = JSON.stringify({ model: cfg.model || 'mistralai/voxtral-mini-tts-2603', input: text, voice: cfg.voice || 'en_paul_neutral', response_format: 'mp3' });
-  } else {
-    body = JSON.stringify({ model: 'tts-1', voice: cfg.voice || 'alloy', input: text, response_format: 'mp3' });
-  }
-  const r = await fetch(url, { method: 'POST', headers, body });
-  if (!r.ok) throw new Error('TTS HTTP ' + r.status);
-  const blob = await r.blob();
-  const uObj = URL.createObjectURL(blob);
-  onPlay && onPlay(uObj);
-  return 'api';
 }
 
+/* ---------- STT: browser speech recognition fallback ---------- */
 async function sttTranscribe(blob) {
-  const cfg = keys.stt;
-  if (cfg.provider === 'browser' || !cfg.key) {
-    throw new Error('Browser mode cannot transcribe - pick a provider in AI keys, or self-grade.');
-  }
-  // OpenRouter STT accepts JSON base64 (avoids multipart quirks cross-origin)
-  if (cfg.provider === 'openrouter-stt') {
-    const b64 = await new Promise((res, rej) => {
-      const fr = new FileReader();
-      fr.onload = () => res(String(fr.result).split(',')[1]);
-      fr.onerror = rej;
-      fr.readAsDataURL(blob);
-    });
-    const r = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.key },
-      body: JSON.stringify({ model: cfg.model || 'openai/whisper-large-v3', input_audio: { data: b64, format: 'webm' }, language: 'en' })
-    });
-    if (!r.ok) throw new Error('STT HTTP ' + r.status + ': ' + (await r.text()).slice(0, 120));
-    const j = await r.json();
-    return j.text || '';
-  }
-  const p = PROVIDERS.stt[cfg.provider] || PROVIDERS.stt.custom;
-  const url = p.url(cfg.voice, cfg.baseUrl);
-  const fd = new FormData();
-  fd.append('file', blob, 'recording.webm');
-  fd.append('model', cfg.provider === 'sarvam' ? 'saarika:v2' : 'whisper-1');
-  const r = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + cfg.key }, body: fd });
-  if (!r.ok) throw new Error('STT HTTP ' + r.status);
-  const j = await r.json();
-  return j.text || j.transcript || '';
+  throw new Error('Browser mode STT unavailable - self-grade using the rubric.');
 }
 
 /* ---------- media recorder ---------- */
@@ -495,81 +373,275 @@ const AI = {
   }
 };
 
-/* ---------- settings dialog ---------- */
-function refreshOAuthBox() {
-  const connected = !!(keys.llm.key && keys.llm.provider === 'openrouter');
-  const box = document.getElementById('orOAuthBox');
-  if (!box) return;
-  box.classList.toggle('or-connected', connected);
-  const loginBtn = document.getElementById('orLoginButton');
-  const logoutBtn = document.getElementById('orLogoutButton');
-  if (loginBtn) {
-    loginBtn.textContent = connected ? 'Connected via OpenRouter \u2713' : 'Sign in with OpenRouter';
-    loginBtn.disabled = connected;
-  }
-  if (logoutBtn) logoutBtn.hidden = !connected;
-  const copy = box.querySelector('.or-oauth-copy span');
-  if (copy && connected) copy.textContent = 'Connected. Your OAuth key covers LLM grading, text-to-speech and speech transcription. Disconnect anytime.';
-}
+/* ---------- AI settings dialog (Gemini-only) ---------- */
 function openSettings() {
   const d = $('#settingsDialog');
-  $('#llmProvider').value = keys.llm.provider;
-  $('#llmModel').value = keys.llm.model || '';
-  $('#llmKey').value = keys.llm.key || '';
-  $('#llmBaseUrl').value = keys.llm.baseUrl || '';
-  $('#ttsProvider').value = keys.tts.provider;
-  $('#ttsModel').value = keys.tts.model || '';
-  $('#ttsKey').value = keys.tts.key || '';
-  $('#ttsVoice').value = keys.tts.voice || '';
-  $('#sttProvider').value = keys.stt.provider;
-  $('#sttModel').value = keys.stt.model || '';
-  $('#sttKey').value = keys.stt.key || '';
-  refreshOAuthBox();
+  if (!d) return;
+  const keyInput = $('#llmKey');
+  const modelSel = $('#llmModel');
+  if (keyInput) keyInput.value = keys.userKey || '';
+  if (modelSel) modelSel.value = keys.model || 'gemini-3.6-flash';
+  // Update the dot indicator
+  const dot = $('#gbbDot');
+  if (dot) {
+    dot.className = 'gbb-dot ' + (keys.userKey ? 'dot-user' : 'dot-builtin');
+    dot.title = keys.userKey ? 'Using your personal key' : 'Using built-in keys (3 rotating)';
+  }
   d.showModal();
 }
+
 document.addEventListener('DOMContentLoaded', () => {
   const on = (sel, ev, fn) => { const el = document.querySelector(sel); if (el) el.addEventListener(ev, fn); };
-  // handle OAuth callback (runs on page load after redirect back from openrouter)
-  orHandleCallback();
-  // show a sticky confirmation if we just connected
-  const justConnected = sessionStorage.getItem('oa-or-just-connected');
-  if (justConnected) {
-    sessionStorage.removeItem('oa-or-just-connected');
-    setTimeout(() => {
-      const st = document.querySelector('#settingsStatus');
-      if (st) st.textContent = 'Connected via OpenRouter OAuth. LLM, TTS and STT are ready - click "Test LLM" to verify.';
-    }, 600);
-  }
+
   on('#settingsButton', 'click', openSettings);
   on('#settingsClose', 'click', () => { const d = document.querySelector('#settingsDialog'); if (d) d.close(); });
-  on('#orLoginButton', 'click', orStartLogin);
-  on('#orLogoutButton', 'click', () => { orDisconnect(); refreshOAuthBox(); });
+
   on('#settingsSave', 'click', () => {
-    keys.llm = { provider: $('#llmProvider').value, model: $('#llmModel').value.trim(), key: $('#llmKey').value.trim(), baseUrl: $('#llmBaseUrl').value.trim() };
-    keys.tts = { provider: $('#ttsProvider').value, model: $('#ttsModel').value.trim(), key: $('#ttsKey').value.trim(), voice: $('#ttsVoice').value.trim() };
-    keys.stt = { provider: $('#sttProvider').value, model: $('#sttModel').value.trim(), key: $('#sttKey').value.trim() };
+    keys.userKey = ($('#llmKey') && $('#llmKey').value.trim()) || '';
+    keys.model   = ($('#llmModel') && $('#llmModel').value) || 'gemini-3.6-flash';
     saveKeys();
-    $('#settingsStatus').textContent = 'Saved. Keys live only in this browser localStorage.';
-    toast('AI keys saved');
+    const st = $('#settingsStatus');
+    if (st) st.textContent = keys.userKey
+      ? '✅ Personal key saved. It will be tried first before built-in keys.'
+      : '✅ Using built-in Gemini keys (3 rotating). No personal key set.';
+    toast('Gemini settings saved');
+    // refresh dot
+    const dot = $('#gbbDot');
+    if (dot) dot.className = 'gbb-dot ' + (keys.userKey ? 'dot-user' : 'dot-builtin');
   });
+
+  on('#settingsClear', 'click', () => {
+    keys.userKey = '';
+    saveKeys();
+    const ki = $('#llmKey'); if (ki) ki.value = '';
+    const st = $('#settingsStatus'); if (st) st.textContent = '🔑 Personal key cleared. Using built-in rotation.';
+    const dot = $('#gbbDot'); if (dot) dot.className = 'gbb-dot dot-builtin';
+    toast('Key cleared');
+  });
+
   on('#settingsTest', 'click', async () => {
-    $('#settingsStatus').textContent = 'Testing...';
+    const st = $('#settingsStatus');
+    if (st) st.textContent = 'Testing Gemini connection…';
     try {
-      const r = await llmChat('Reply with exactly: OK', 'ping');
-      $('#settingsStatus').textContent = 'LLM works: ' + r.slice(0, 60);
-    } catch (e) { $('#settingsStatus').textContent = 'Test failed: ' + e.message; }
-  });
-  $$('.settings-tab').forEach(t => t.addEventListener('click', () => {
-    $$('.settings-tab').forEach(x => x.classList.toggle('active', x === t));
-    ['llm', 'tts', 'stt'].forEach(k => { const p = document.querySelector('#stab-' + k); if (p) p.hidden = (t.dataset.stab !== k); });
-  }));
-  const lp = document.querySelector('#llmProvider');
-  if (lp) lp.addEventListener('change', function () {
-    const m = { openai: 'gpt-4o-mini', groq: 'llama-3.1-8b-instant', openrouter: 'openai/gpt-4o-mini', gemini: 'gemini-1.5-flash', sarvam: 'sarvam-m', anthropic: 'claude-3-5-haiku-20241022', custom: '' };
-    const mi = document.querySelector('#llmModel'); if (mi) mi.value = m[this.value] || '';
-    const bw = document.querySelector('#llmBaseUrlWrap'); if (bw) bw.style.display = this.value === 'custom' ? '' : 'none';
+      const r = await _geminiCall('Reply with exactly: OK', 'You are a test bot.');
+      if (st) st.textContent = '✅ Gemini works: ' + r.trim().slice(0, 60);
+    } catch (e) {
+      if (st) st.textContent = '❌ Test failed: ' + e.message;
+    }
   });
 });
 
-window.OA_AI = { AI, llmChat, ttsSpeak, sttTranscribe, refreshSettings: refreshOAuthBox, orStartLogin, openSettings };
+
+/* ---------- Gemini frontend code review (rubric-based, structured JSON) ---------- */
+async function llmFrontendReview(problemTitle, problemPrompt, files, checks) {
+  const model = keys.model || 'gemini-3.6-flash';
+
+  const systemTxt = `You are an expert frontend code reviewer for an online assessment platform.
+Evaluate the student's HTML, CSS and JavaScript submission against the given rubric checklist.
+Respond with ONLY valid JSON — no markdown fences, no extra text:
+{
+  "score": <integer 0 to ${checks.length}>,
+  "pass": <true or false>,
+  "feedback": "<2-3 sentence holistic feedback>",
+  "checks": [
+    { "label": "<exact label from rubric>", "pass": <true/false>, "note": "<one short reason>" }
+  ]
+}
+Be strict but fair. Judge what the code DOES functionally, not just its shape.`;
+
+  const userTxt = `Problem: ${problemTitle}
+Description: ${problemPrompt}
+
+Rubric (evaluate EACH item):
+${checks.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+
+--- HTML (index.html) ---
+${files.html || ''}
+
+--- CSS (style.css) ---
+${files.css || ''}
+
+--- JavaScript (script.js) ---
+${files.js || ''}`;
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: userTxt }] }],
+    systemInstruction: { parts: [{ text: systemTxt }] },
+    generationConfig: { temperature: 0.1, maxOutputTokens: 1500 }
+  });
+
+  // Attempt with user key first, then each built-in
+  const keysToTry = keys.userKey ? [keys.userKey, ..._GEMINI_KEYS] : _GEMINI_KEYS;
+  let lastErr = 'No keys available';
+
+  for (const k of keysToTry) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${k}`;
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      if (!r.ok) { lastErr = `Gemini HTTP ${r.status}: ${(await r.text()).slice(0, 120)}`; continue; }
+      const j = await r.json();
+      const raw = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts[0].text;
+      if (!raw) { lastErr = 'Empty Gemini response'; continue; }
+      // Strip any accidental markdown fences
+      const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+      const result = JSON.parse(clean);
+      // Normalise: ensure checks array is complete
+      if (!result.checks || result.checks.length !== checks.length) {
+        result.checks = checks.map((label, i) => {
+          const found = (result.checks || []).find(c => c.label === label);
+          return found || { label, pass: false, note: 'Not evaluated by AI' };
+        });
+        result.score = result.checks.filter(c => c.pass).length;
+        result.pass  = result.score === checks.length;
+      }
+      return result;
+    } catch (e) { lastErr = e.message; }
+  }
+}
+
+/* ---------- Gemini code debugger / hints for DSA & SQL ---------- */
+async function llmCodeHint(problemTitle, problemPrompt, language, code, testInfo) {
+  const systemTxt = `You are an expert OA coding mentor.
+The student is practicing a technical assessment coding problem and their solution failed or threw an error.
+Give a brief, high-value diagnosis:
+1. Root cause of why it failed or errored.
+2. The specific edge case or logic bug.
+3. A focused hint or conceptual fix (guide them to solve it, do not just dump the complete solution).
+Keep your response concise, clear, and encouraging.`;
+
+  const userTxt = `Problem: ${problemTitle}
+Prompt: ${problemPrompt}
+Language: ${language}
+
+Student Code:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Test Case Diagnostic:
+Input: ${testInfo.input || 'N/A'}
+Expected: ${testInfo.expected || 'N/A'}
+Actual: ${testInfo.actual || 'N/A'}
+Error: ${testInfo.error || 'None'}`;
+
+  return _geminiCall(userTxt, systemTxt);
+}
+
+/* ---------- Gemini Technical Frontend Component Judge (Cognizant / React / Angular) ---------- */
+async function llmComponentJudge(problemTitle, problemPrompt, componentCode, checks, evaluatorCases) {
+  const model = keys.model || 'gemini-3.6-flash';
+  const systemTxt = `You are an automated technical assessment evaluator for enterprise frontend coding assessments (Cognizant/Accenture/Infosys).
+Evaluate the candidate's React or Angular component implementation against the problem requirements, architecture checks, and evaluator test cases.
+Respond ONLY with valid JSON (no markdown formatting, no extra prose):
+{
+  "score": <integer 0 to 100>,
+  "passed": <boolean: true if score >= 75>,
+  "verdict": "<short verdict, e.g. Pass / High Distinction, Strong Pass, or Incomplete Implementation>",
+  "summary": "<2-3 sentence technical assessment of correctness, state management, and edge-case handling>",
+  "evaluatorCases": [
+    { "scenario": "<name of evaluator case>", "passed": <boolean>, "note": "<brief technical note>" }
+  ],
+  "recommendations": "<1-2 specific bullet suggestions for improvement or edge cases>"
+}
+Be rigorous, evaluating both behavioral correctness and code quality.`;
+
+  const userTxt = `Assessment: Frontend Component Lab
+Problem: ${problemTitle}
+Prompt: ${problemPrompt}
+
+Expected Evaluator Scenarios:
+${(evaluatorCases || []).map((ec, i) => `${i + 1}. ${ec}`).join('\n')}
+
+Architectural & Behavioral Checks:
+${(checks || []).map((c, i) => `${i + 1}. ${c.label || c}`).join('\n')}
+
+Candidate Code:
+\`\`\`
+${componentCode}
+\`\`\``;
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: userTxt }] }],
+    systemInstruction: { parts: [{ text: systemTxt }] },
+    generationConfig: { temperature: 0.1, maxOutputTokens: 1500 }
+  });
+
+  const keysToTry = keys.userKey ? [keys.userKey, ..._GEMINI_KEYS] : _GEMINI_KEYS;
+  let lastErr = 'No keys available';
+
+  for (const k of keysToTry) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${k}`;
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      if (!r.ok) { lastErr = `Gemini HTTP ${r.status}: ${(await r.text()).slice(0, 120)}`; continue; }
+      const j = await r.json();
+      const raw = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts[0].text;
+      if (!raw) { lastErr = 'Empty Gemini response'; continue; }
+      const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+      return JSON.parse(clean);
+    } catch (e) { lastErr = e.message; }
+  }
+  throw new Error('Component evaluation failed: ' + lastErr);
+}
+
+/* ---------- Gemini Code Runner for Compiled Languages (Java / C++) ---------- */
+async function llmCodeRunner(problemTitle, problemPrompt, language, code, tests) {
+  const model = keys.model || 'gemini-3.6-flash';
+  const systemTxt = `You are a strict Online Assessment (OA) Judge simulating the execution of a ${language.toUpperCase()} program.
+For each given test case (with standard input and expected output), accurately simulate running the student's code.
+Respond ONLY with valid JSON (no markdown formatting, no extra prose):
+{
+  "results": [
+    {
+      "name": "<test case name>",
+      "pass": <true or false>,
+      "input": "<the stdin input>",
+      "expected": "<the expected output>",
+      "actual": "<the simulated stdout output of candidate code>",
+      "error": <null or string error message if syntax/runtime/compile error>
+    }
+  ]
+}`;
+
+  const testsFormatted = (tests || []).map((t, i) =>
+    `Test ${i + 1} (${t.name || 'Scenario ' + (i + 1)}):\nInput: ${(t.args || []).join('\n')}\nExpected: ${t.expected}`
+  ).join('\n\n');
+
+  const userTxt = `Problem: ${problemTitle}
+Prompt: ${problemPrompt}
+Language: ${language}
+
+Candidate Code:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Test Cases to Execute:
+${testsFormatted}`;
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: userTxt }] }],
+    systemInstruction: { parts: [{ text: systemTxt }] },
+    generationConfig: { temperature: 0.05, maxOutputTokens: 1500 }
+  });
+
+  const keysToTry = keys.userKey ? [keys.userKey, ..._GEMINI_KEYS] : _GEMINI_KEYS;
+  let lastErr = 'No keys available';
+
+  for (const k of keysToTry) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${k}`;
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      if (!r.ok) { lastErr = `Gemini HTTP ${r.status}: ${(await r.text()).slice(0, 120)}`; continue; }
+      const j = await r.json();
+      const raw = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts[0].text;
+      if (!raw) { lastErr = 'Empty Gemini response'; continue; }
+      const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+      return JSON.parse(clean);
+    } catch (e) { lastErr = e.message; }
+  }
+  throw new Error('Code simulation failed: ' + lastErr);
+}
+
+window.OA_AI = { AI, llmChat, ttsSpeak, sttTranscribe, llmFrontendReview, llmCodeHint, llmComponentJudge, llmCodeRunner, refreshSettings: openSettings, openSettings };
 })();

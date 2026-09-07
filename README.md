@@ -1,6 +1,6 @@
 # OA Open — Free Online Assessment Practice Platform
 
-OA Open is an ultra-fast, modern, offline-first practice platform for technical and aptitude Online Assessments (OAs). It contains **1,798+ curated practice questions** with verified answer keys, interactive coding drills with in-browser WebAssembly execution (Python via Pyodide, SQL via SQLite WASM, and JavaScript), listening comprehension audio drills, game-based aptitude puzzles, and optional AI explanations via OpenRouter, OpenAI, Claude, or Gemini.
+OA Open is an ultra-fast, modern, offline-first practice platform for technical and aptitude Online Assessments (OAs). It contains **1,798+ curated practice questions** with verified answer keys, interactive coding drills with in-browser WebAssembly execution (Python via Pyodide, SQL via SQLite WASM, and JavaScript), listening comprehension audio drills, game-based aptitude puzzles, and AI explanations and frontend code reviews via Google Gemini API.
 
 ---
 
@@ -19,9 +19,10 @@ OA Open is an ultra-fast, modern, offline-first practice platform for technical 
   - **Frontend**: Live HTML, CSS, and JS preview sandbox.
 - 🎧 **Cognizant Listening Drills**: 30 high-quality audio clips and synced comprehension questions.
 - 🧩 **Interactive Aptitude Games & Drills**: Key Maze (with responsive D-pad & keyboard controls), Arithmetic Order (speed mental math), and Matrix Flow.
-- 🤖 **AI Explanations & Mock Reviews**:
-  - OpenRouter PKCE OAuth (1-click sign-in with zero manual key copying).
-  - Direct support for OpenAI, Anthropic Claude, Google Gemini, Groq, and Sarvam AI.
+- 🤖 **AI Explanations & Frontend Code Evaluation**:
+  - Built-in automatic key rotation with Google Gemini API (`gemini-3.6-flash`, `gemini-3.5-flash`, etc.).
+  - Automated rubric evaluation of student HTML/CSS/JS frontend submissions.
+  - Optional custom Gemini API key override in local storage.
   - In-browser speech recognition (STT) and voice feedback (TTS).
 - 🎨 **Modern Themes**:
   - **Cyber (Default)**: Sleek obsidian dark (`#080a11`), electric cyan (`#00e5ff`), and vibrant violet glow.
@@ -67,7 +68,7 @@ OA Open is pre-configured for instant zero-configuration static deployment:
 ├── app-core.js             # Navigation, question viewer, state management, progress backup
 ├── app-coding.js           # In-browser Code Studio (Pyodide WASM, SQL.js, CodeMirror editor)
 ├── app-games.js            # Interactive aptitude games & puzzles
-├── app-ai.js               # AI assistant & OpenRouter PKCE OAuth integration
+├── app-ai.js               # AI assistant & Google Gemini API integration
 ├── data.js                 # 1,798 curated questions & assessment datasets
 ├── audio/                  # 30 audio clips for Cognizant listening drills
 ├── vendor/                 # Offline dependencies (Pyodide, CodeMirror, SQL.js WASM)
@@ -82,7 +83,7 @@ OA Open is pre-configured for instant zero-configuration static deployment:
 
 - All assessment practice is executed strictly client-side.
 - Your progress data never leaves your device.
-- API keys (OpenRouter / OpenAI / Anthropic / Gemini) are saved only in your local browser storage and used for direct API calls to the respective provider.
+- API keys (Google Gemini) are saved only in your local browser storage and used for direct API calls to `generativelanguage.googleapis.com`.
 
 ---
 

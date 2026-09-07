@@ -318,11 +318,28 @@ a:hover {
    Layout Shell
    -------------------------------------------------------------------------- */
 .site-shell {
-  max-width: 1240px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 0 28px 80px;
   position: relative;
   z-index: 1;
+  transition: max-width var(--transition-normal), padding var(--transition-normal);
+}
+
+/* Utilize full width when in coding or lab workbench views */
+.site-shell:has(.coding-view:not([hidden])),
+.site-shell:has(.cognizant-section-view:not([hidden])),
+.site-shell:has(.practice-view:not([hidden])),
+body.has-active-coding .site-shell {
+  max-width: 100% !important;
+  padding: 0 16px 20px !important;
+}
+
+.site-shell:has(.coding-view:not([hidden])) .topbar,
+.site-shell:has(.cognizant-section-view:not([hidden])) .topbar,
+body.has-active-coding .topbar {
+  margin-bottom: 12px;
+  height: 52px;
 }
 
 /* --------------------------------------------------------------------------
@@ -1725,15 +1742,24 @@ a:hover {
    -------------------------------------------------------------------------- */
 .coding-workbench {
   display: grid;
-  grid-template-columns: 260px 1fr 1.15fr;
-  gap: 16px;
-  align-items: start;
+  grid-template-columns: 240px minmax(340px, 1fr) minmax(460px, 1.45fr);
+  gap: 14px;
+  align-items: stretch;
   width: 100%;
+  height: calc(100vh - 110px);
+  min-height: 600px;
+  transition: grid-template-columns var(--transition-normal);
+}
+
+.coding-workbench.rail-collapsed {
+  grid-template-columns: 48px minmax(360px, 1fr) minmax(520px, 1.85fr);
 }
 
 @media (max-width: 1080px) {
-  .coding-workbench {
+  .coding-workbench,
+  .coding-workbench.rail-collapsed {
     grid-template-columns: 1fr;
+    height: auto;
   }
 }
 
@@ -1743,20 +1769,72 @@ a:hover {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+  height: 100%;
 }
 
 .coding-rail {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 140px);
+  transition: width var(--transition-normal);
 }
 
 .coding-rail-head {
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+}
+
+.crh-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rail-toggle-btn {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rail-toggle-btn:hover {
+  background: var(--accent-surface);
+  color: var(--accent);
+  border-color: var(--accent-glow);
+}
+
+.coding-workbench.rail-collapsed .coding-rail {
+  width: 48px;
+}
+
+.coding-workbench.rail-collapsed .coding-rail-list,
+.coding-workbench.rail-collapsed .coding-rail-foot,
+.coding-workbench.rail-collapsed .crh-title-group {
+  display: none !important;
+}
+
+.coding-workbench.rail-collapsed .coding-rail-head {
+  padding: 12px 6px;
+  justify-content: center;
+}
+
+.coding-workbench.rail-collapsed .rail-toggle-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
 }
 
 .crh-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
@@ -2294,6 +2372,230 @@ a:hover {
   overflow-x: auto;
 }
 
+/* Formatted SQL Results Table */
+.sql-table-wrap {
+  overflow-x: auto;
+  margin: 10px 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.sql-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-app);
+}
+
+.sql-table th {
+  background: var(--bg-surface-elevated);
+  color: var(--accent);
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-base);
+  font-weight: 700;
+}
+
+.sql-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.sql-table tr:hover td {
+  background: var(--bg-surface-hover);
+}
+
+/* AI Code Hint Box */
+.ai-hint-box {
+  margin-top: 12px;
+  padding: 14px;
+  background: rgba(168, 85, 247, 0.08);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+}
+
+.ai-hint-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ai-hint-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c084fc;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-hint-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+.btn-ai-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(0, 229, 255, 0.2));
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #e9d5ff;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-ai-hint:hover {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.35), rgba(0, 229, 255, 0.35));
+  border-color: #c084fc;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* AI Component Judge Card (Cognizant Frontend) */
+.ai-eval-card {
+  margin-top: 14px;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-sans);
+}
+
+.ai-eval-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 12px;
+}
+
+.ai-eval-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-eval-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.ai-eval-score-badge {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+}
+
+.ai-eval-score-badge.pass {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.ai-eval-score-badge.fail {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.ai-eval-verdict {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.ai-eval-summary {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+
+.ai-eval-scenarios-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.ai-eval-scenarios {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.ai-eval-scenario-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+
+.ai-eval-scenario-row.pass .scenario-icon {
+  color: #34d399;
+}
+
+.ai-eval-scenario-row.fail .scenario-icon {
+  color: #f87171;
+}
+
+.scenario-info {
+  flex: 1;
+}
+
+.scenario-info strong {
+  color: var(--text-primary);
+  display: block;
+}
+
+.scenario-info span {
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.ai-eval-recs {
+  font-size: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 229, 255, 0.06);
+  border-left: 3px solid #00e5ff;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: #e0f2fe;
+  line-height: 1.5;
+}
+
 .frontend-file-tabs {
   display: flex;
   gap: 6px;
@@ -2318,11 +2620,344 @@ a:hover {
 
 .frontend-preview {
   width: 100%;
-  height: 280px;
+  height: 320px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: #ffffff;
 }
+
+.target-answer-preview {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+/* --------------------------------------------------------------------------
+   Frontend Lab — Multi-file Editor
+   -------------------------------------------------------------------------- */
+.fe-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.fe-editor-pane {
+  height: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   Frontend Lab — Results Panel
+   -------------------------------------------------------------------------- */
+
+/* Score header row */
+.fe-results-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  border: 1px solid var(--border-subtle);
+  animation: fe-slide-in 0.3s ease;
+}
+.fe-results-header.all-pass  {
+  background: var(--color-success-bg);
+  border-color: var(--color-success);
+}
+.fe-results-header.some-pass {
+  background: var(--color-warn-bg);
+  border-color: var(--color-warn);
+}
+.fe-results-header.none-pass {
+  background: var(--color-error-bg);
+  border-color: var(--color-error);
+}
+
+@keyframes fe-slide-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* SVG score ring */
+.fe-score-ring {
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+}
+.fe-score-circle {
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+.fe-circle-bg {
+  fill: none;
+  stroke: var(--border-base);
+  stroke-width: 3.2;
+}
+.fe-circle-fill {
+  fill: none;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.fe-circle-fill.all-pass  { stroke: var(--color-success); }
+.fe-circle-fill.some-pass { stroke: var(--color-warn); }
+.fe-circle-fill.none-pass { stroke: var(--color-error); }
+.fe-score-text {
+  fill: var(--text-primary);
+  font-size: 7.5px;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: central;
+  transform: rotate(90deg) translate(0, -36px);
+  font-family: var(--font-mono);
+}
+
+.fe-score-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+.fe-score-info strong {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.fe-score-info span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* AI feedback box */
+.fe-ai-feedback {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  animation: fe-slide-in 0.3s ease 0.1s both;
+}
+.fe-ai-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.fe-ai-feedback p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+/* Per-check item list */
+.fe-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: fe-slide-in 0.3s ease 0.15s both;
+}
+.fe-check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  transition: border-color var(--transition-fast);
+}
+.fe-check-item.pass {
+  border-color: color-mix(in srgb, var(--color-success) 30%, transparent);
+}
+.fe-check-item.fail {
+  border-color: color-mix(in srgb, var(--color-error) 25%, transparent);
+}
+.fe-check-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  line-height: 1;
+}
+.fe-check-body {
+  flex: 1;
+  min-width: 0;
+}
+.fe-check-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.fe-check-note {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.fe-check-src {
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.3px;
+}
+.fe-src-dom { background: rgba(0,229,255,0.12); color: #00e5ff; }
+.fe-src-ai  { background: rgba(199,125,255,0.12); color: #c77dff; }
+
+/* Loading state */
+.fe-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.fe-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border-base);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: fe-spin 0.8s linear infinite;
+}
+@keyframes fe-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --------------------------------------------------------------------------
+   Frontend Lab — Problem Pane Review Section
+   -------------------------------------------------------------------------- */
+.problem-review-section {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin: 16px 0;
+}
+.prv-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.prv-title {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-primary);
+  margin: 0;
+}
+.prv-ai-badge {
+  font-size: 10px;
+  font-weight: 800;
+  background: var(--accent-surface);
+  color: var(--accent);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  letter-spacing: 0.4px;
+}
+.prv-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+.prv-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.prv-checklist li {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  padding-left: 16px;
+  position: relative;
+}
+.prv-checklist li::before {
+  content: '•';
+  position: absolute;
+  left: 4px;
+  color: var(--accent);
+}
+.prv-more {
+  font-style: italic;
+  color: var(--text-muted) !important;
+  font-size: 12px !important;
+}
+
+/* --------------------------------------------------------------------------
+   Frontend Lab — Test Cases / AI Rubric Preview Panel
+   -------------------------------------------------------------------------- */
+.fe-checks-preview {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+.fcp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.fcp-header strong {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-primary);
+}
+.fcp-header span {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-surface);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+.fcp-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.fcp-list li {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  padding: 4px 6px 4px 18px;
+  border-radius: var(--radius-sm);
+  position: relative;
+  transition: background var(--transition-fast);
+}
+.fcp-list li::before {
+  content: '○';
+  position: absolute;
+  left: 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  top: 5px;
+}
+.fcp-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
 
 /* --------------------------------------------------------------------------
    AI Evaluation & Speech & Listening Sections
