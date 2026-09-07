@@ -404,6 +404,149 @@ function checkTests(tests, runner, q) {
   return runner;
 }
 
+/* ---------- Multi-Language Helpers & Starter Code ---------- */
+function detectLanguageFromString(str) {
+  if (!str || typeof str !== 'string') return null;
+  const s = str.trim();
+  if (/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|WITH)\b/i.test(s) || /--\s*Write your SQL/i.test(s)) {
+    return 'sql';
+  }
+  if (/\b(function\b|const\b|let\b|var\b|console\.log|module\.exports|=>)/.test(s)) {
+    return 'javascript';
+  }
+  if (/\b(def\s+\w+|import\s+sys|if\s+__name__\s*==|sys\.stdin|print\()/i.test(s)) {
+    return 'python';
+  }
+  if (/\b(public\s+class|BufferedReader|System\.out|InputStreamReader)\b/.test(s)) {
+    return 'java';
+  }
+  if (/\b(#include\s*<|std::|cin\s*>>|cout\s*<<)\b/.test(s)) {
+    return 'cpp';
+  }
+  return null;
+}
+
+function getCodeMirrorModeForLang(lang) {
+  const map = {
+    python: 'python',
+    javascript: 'javascript',
+    sql: 'sql',
+    java: 'text/x-java',
+    cpp: 'text/x-c++src'
+  };
+  return map[lang] || 'python';
+}
+
+function getRuntimeBadgeText(lang, category) {
+  if (category === 'frontend') return 'HTML · CSS · JS · sandboxed iframe';
+  if (lang === 'sql' || category === 'sql') return 'SQLite 3 · sql.js WASM';
+  if (lang === 'javascript') return 'JavaScript · in-browser V8 runtime';
+  if (lang === 'java') return 'Java · Solution template (AI verified)';
+  if (lang === 'cpp') return 'C++ · Solution template (AI verified)';
+  return 'Python 3 · browser WASM';
+}
+
+function populateLanguageSelect(selectEl, category, currentLang, isCompanyWorkbench) {
+  if (!selectEl) return currentLang;
+  const isSql = category === 'sql' || category === 'sql-lab';
+  let options = [];
+
+  if (isSql) {
+    options = [
+      { value: 'sql', label: 'SQL (SQLite WASM)' }
+    ];
+  } else if (isCompanyWorkbench) {
+    options = [
+      { value: 'python', label: 'Python 3 (Live WASM)' },
+      { value: 'javascript', label: 'JavaScript (Live V8)' },
+      { value: 'java', label: 'Java (Solution template)' },
+      { value: 'cpp', label: 'C++ (Solution template)' }
+    ];
+  } else {
+    // Accenture / Coding Lab (DSA): DSA -> NO SQL in option!
+    options = [
+      { value: 'python', label: 'Python 3 (Pyodide WASM)' },
+      { value: 'javascript', label: 'JavaScript (Sandbox)' }
+    ];
+  }
+
+  const validVals = options.map(o => o.value);
+  let effectiveLang = currentLang;
+  if (!validVals.includes(effectiveLang)) {
+    effectiveLang = validVals[0];
+  }
+
+  selectEl.innerHTML = options.map(o =>
+    '<option value="' + esc(o.value) + '"' + (o.value === effectiveLang ? ' selected' : '') + '>' + esc(o.label) + '</option>'
+  ).join('');
+
+  selectEl.value = effectiveLang;
+  selectEl.dataset.prevLang = effectiveLang;
+  return effectiveLang;
+}
+
+function getStarterCodeForLang(q, lang) {
+  if (!q) return '';
+  const targetLang = (lang || 'python').toLowerCase();
+
+  // 1. If starterCode is an object containing code per language
+  if (q.starterCode && typeof q.starterCode === 'object') {
+    if (targetLang === 'python' && (q.starterCode.python || q.starterCode.py)) {
+      return q.starterCode.python || q.starterCode.py;
+    }
+    if (targetLang === 'javascript' && (q.starterCode.javascript || q.starterCode.js)) {
+      return q.starterCode.javascript || q.starterCode.js;
+    }
+    if (targetLang === 'java' && q.starterCode.java) {
+      return q.starterCode.java;
+    }
+    if (targetLang === 'cpp' && (q.starterCode.cpp || q.starterCode['c++'])) {
+      return q.starterCode.cpp || q.starterCode['c++'];
+    }
+    if (targetLang === 'sql' && q.starterCode.sql) {
+      return q.starterCode.sql;
+    }
+    if (q.starterCode[targetLang]) {
+      return q.starterCode[targetLang];
+    }
+  }
+
+  // 2. Extract comment or instruction if starterCode is string
+  let promptComment = '';
+  if (typeof q.starterCode === 'string') {
+    const detected = detectLanguageFromString(q.starterCode);
+    if (detected === targetLang) {
+      return q.starterCode;
+    }
+    // Extract inner comment from starterCode if present
+    const cMatch = q.starterCode.match(/\/\/\s*([^\n\r]+)/) || q.starterCode.match(/#\s*([^\n\r]+)/);
+    if (cMatch) promptComment = cMatch[1].trim();
+  }
+
+  // 3. Fallbacks per target language
+  if (targetLang === 'sql' || q.category === 'sql') {
+    if (typeof q.starterCode === 'string' && detectLanguageFromString(q.starterCode) === 'sql') {
+      return q.starterCode;
+    }
+    return '-- Write your SQL query below\nSELECT * FROM ...;\n';
+  }
+
+  if (targetLang === 'javascript') {
+    return 'function solve(input) {\n  // ' + (promptComment || 'Parse input and return the required output') + '\n  return "";\n}\n';
+  }
+
+  if (targetLang === 'java') {
+    return 'import java.io.*;\nimport java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) throws Exception {\n        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));\n        // ' + (promptComment || 'Read input and write solution here') + '\n    }\n}\n';
+  }
+
+  if (targetLang === 'cpp') {
+    return '#include <iostream>\n#include <vector>\n#include <string>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    // ' + (promptComment || 'Read input and write solution here') + '\n    return 0;\n}\n';
+  }
+
+  // Default: Python
+  return 'import sys\n\ndef solve(input_data):\n    # ' + (promptComment || 'Parse input_data and return the required output') + '\n    return ""\n\nif __name__ == "__main__":\n    print(solve(sys.stdin.read()))\n';
+}
+
 /* ---------- DSA Execution Helpers (JS & Python) ---------- */
 function runJsDsa(code, stdinText) {
   try {
@@ -782,33 +925,36 @@ const Coding = {
     const langSel = $('#cLangSelect', root);
     if (langSel) {
       langSel.addEventListener('change', function () {
-        st.lang = this.value;
-        const modeMap = {
-          python: 'python',
-          javascript: 'javascript',
-          sql: 'sql',
-          java: 'text/x-java',
-          cpp: 'text/x-c++src'
-        };
-        if (st.cm) st.cm.setOption('mode', modeMap[this.value] || 'python');
+        const curQ = self.visibleList()[st.i];
+        const prevLang = this.dataset.prevLang || st.lang || 'python';
+        const newLang = this.value;
+        this.dataset.prevLang = newLang;
+        st.lang = newLang;
+
+        if (curQ && st.cm) {
+          const curCode = st.cm.getValue();
+          const drafts = pGet('drafts');
+          drafts[curQ.id + ':' + prevLang] = curCode;
+          drafts[curQ.id] = curCode;
+          window.OA_UI.saveProgress();
+        }
+
+        if (st.cm) st.cm.setOption('mode', getCodeMirrorModeForLang(newLang));
         const badge = $('#cRuntimeBadge', root);
         if (badge) {
-          if (this.value === 'python') badge.textContent = 'Python 3 · browser WASM';
-          else if (this.value === 'javascript') badge.textContent = 'JavaScript · browser V8 runtime';
-          else if (this.value === 'sql') badge.textContent = 'SQLite 3 · sql.js WASM';
-          else if (this.value === 'java') badge.textContent = 'Java · Solution template (AI verified)';
-          else if (this.value === 'cpp') badge.textContent = 'C++ · Solution template (AI verified)';
+          badge.textContent = getRuntimeBadgeText(newLang, st.mode === 'sql-lab' ? 'sql' : 'dsa');
         }
-        const curQ = self.visibleList()[st.i];
+
         if (curQ && st.cm) {
           const drafts = pGet('drafts');
-          const savedLang = drafts[curQ.id + ':' + this.value];
+          const savedLang = drafts[curQ.id + ':' + newLang];
           if (savedLang != null) {
             st.cm.setValue(savedLang);
           } else {
-            const newCode = self.getStarterCodeForLang(curQ, this.value);
-            if (newCode) st.cm.setValue(newCode);
+            const newCode = getStarterCodeForLang(curQ, newLang);
+            st.cm.setValue(newCode || '');
           }
+          setTimeout(() => st.cm && st.cm.refresh(), 30);
         }
       });
     }
@@ -819,42 +965,22 @@ const Coding = {
     }
     const codeEl = $('#cCode', root);
     if (codeEl) {
-      st.cm = CodeMirror.fromTextArea(codeEl, { lineNumbers: true, mode: st.lang || 'python', autoCloseBrackets: true, matchBrackets: true, indentUnit: 4 });
+      st.cm = CodeMirror.fromTextArea(codeEl, { lineNumbers: true, mode: getCodeMirrorModeForLang(st.lang || 'python'), autoCloseBrackets: true, matchBrackets: true, indentUnit: 4 });
+      st.cm.on('change', () => {
+        const curQ = self.visibleList()[st.i];
+        if (!curQ) return;
+        const curLang = ($('#cLangSelect', root) && $('#cLangSelect', root).value) || st.lang || 'python';
+        const val = st.cm.getValue();
+        pGet('drafts')[curQ.id + ':' + curLang] = val;
+        pGet('drafts')[curQ.id] = val;
+      });
     }
     this.renderList();
     setTimeout(() => { if (st.cm) st.cm.refresh(); }, 50);
   },
 
   getStarterCodeForLang(q, lang) {
-    if (!q) return '';
-    if (q.starterCode) {
-      if (typeof q.starterCode === 'string') {
-        if (lang === 'python' || lang === 'javascript' || lang === 'sql') return q.starterCode;
-      } else if (typeof q.starterCode === 'object') {
-        if (lang === 'python' && q.starterCode.python) return q.starterCode.python;
-        if (lang === 'javascript' && (q.starterCode.js || q.starterCode.javascript)) return q.starterCode.js || q.starterCode.javascript;
-        if (lang === 'java' && q.starterCode.java) return q.starterCode.java;
-        if (lang === 'cpp' && (q.starterCode.cpp || q.starterCode['c++'])) return q.starterCode.cpp || q.starterCode['c++'];
-        if (q.starterCode[lang]) return q.starterCode[lang];
-      }
-    }
-    // Fallbacks
-    if (this.state.mode === 'code-check') {
-      return '// Complete the component implementation\n';
-    }
-    if (this.state.mode === 'sql-lab') {
-      return '-- Write your SQL query below\nSELECT * FROM ...;\n';
-    }
-    if (lang === 'javascript') {
-      return 'function solve(input) {\n    // Parse input and return the required output string\n    return "";\n}\n';
-    }
-    if (lang === 'java') {
-      return 'import java.io.*;\n\nclass Solution {\n    public static void main(String[] args) throws Exception {\n        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));\n        // Write solution here\n    }\n}\n';
-    }
-    if (lang === 'cpp') {
-      return '#include <iostream>\n#include <string>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    // Read input and write solution here\n    return 0;\n}\n';
-    }
-    return 'import sys\n\ndef solve(input_data):\n    # Parse input_data and return the required output\n    return ""\n\nif __name__ == "__main__":\n    print(solve(sys.stdin.read()))\n';
+    return getStarterCodeForLang(q, lang);
   },
 
   visibleList() {
@@ -922,14 +1048,15 @@ const Coding = {
     const list = this.visibleList();
     const q = list[this.state.i];
     if (!q) return;
-    const lang = this.state.lang || 'python';
-    const code = this.getStarterCodeForLang(q, lang);
-    this.state.cm.setValue(code || '');
+    const langSel = $('#cLangSelect');
+    const lang = (langSel && langSel.value) || this.state.lang || 'python';
+    const code = getStarterCodeForLang(q, lang);
+    if (this.state.cm) this.state.cm.setValue(code || '');
     const drafts = pGet('drafts');
     delete drafts[q.id];
     delete drafts[q.id + ':' + lang];
     window.OA_UI.saveProgress();
-    toast('Code reset to starter template.');
+    toast('Code reset to ' + lang + ' starter template.');
   },
 
   render() {
@@ -1002,8 +1129,24 @@ const Coding = {
     $('#cProblem').innerHTML = body;
     attachExampleCopyHandlers($('#cProblem'));
 
-    // Test cases in console
+    /* ---- 1. Reset console tabs and clear stale outputs ---- */
+    $$('#sectionEngine [data-ctab]').forEach(t => t.classList.toggle('active', t.dataset.ctab === 'tests'));
     const tcEl = $('#cTestCases');
+    const cipEl = $('#cCustomInputPane');
+    const outEl = $('#cOut');
+    const prevEl = $('#cPreview');
+    const cipText = $('#cCustomInputText');
+
+    if (tcEl) tcEl.hidden = false;
+    if (cipEl) cipEl.hidden = true;
+    if (outEl) {
+      outEl.hidden = true;
+      outEl.innerHTML = 'Click "Run ▶" to execute your solution.';
+    }
+    if (prevEl) { prevEl.hidden = true; prevEl.srcdoc = ''; }
+    if (cipText) cipText.value = '';
+
+    // Populate test cases
     if (tcEl) {
       if (pubTests.length) {
         tcEl.innerHTML = pubTests.map((t, k) =>
@@ -1023,46 +1166,31 @@ const Coding = {
     const prevTab = $('#cPreviewTab');
     if (prevTab) prevTab.hidden = !isFrontend;
 
+    /* ---- 2. Contextual language options (DSA: no SQL; SQL: SQL only) ---- */
+    const langSel = $('#cLangSelect');
+    const isSql = st.mode === 'sql-lab' || q.category === 'sql';
+    const catKind = isSql ? 'sql' : 'dsa';
+    let prefLang = st.lang || (langSel ? langSel.value : 'python');
+    if (isSql) prefLang = 'sql';
+    else if (prefLang === 'sql') prefLang = 'python';
+
+    const effectiveLang = populateLanguageSelect(langSel, catKind, prefLang, true);
+    st.lang = effectiveLang;
+
     const runtimeBadge = $('#cRuntimeBadge');
     if (runtimeBadge) {
       if (isFrontend) runtimeBadge.textContent = (q.framework || 'Frontend') + ' preview · sandboxed';
-      else if (st.mode === 'sql-lab') runtimeBadge.textContent = 'SQLite 3 · sql.js WASM';
-      else if (st.mode === 'code-check') runtimeBadge.textContent = 'JavaScript / TypeScript · component';
-      else if (st.lang === 'javascript') runtimeBadge.textContent = 'JavaScript · browser V8 runtime';
-      else if (st.lang === 'java') runtimeBadge.textContent = 'Java · Solution template (AI verified)';
-      else if (st.lang === 'cpp') runtimeBadge.textContent = 'C++ · Solution template (AI verified)';
-      else runtimeBadge.textContent = 'Python 3 · browser WASM';
+      else runtimeBadge.textContent = getRuntimeBadgeText(effectiveLang, catKind);
     }
 
-    let code = '';
-    const drafts = pGet('drafts');
-    const saved = drafts[q.id + ':' + st.lang] || drafts[q.id];
-    if (saved != null) {
-      code = saved;
-    } else {
-      code = this.getStarterCodeForLang(q, st.lang);
-    }
-    st.cm.setValue(code || '');
-
-    const langSel = $('#cLangSelect');
-    if (st.mode === 'code-check') {
-      st.lang = 'javascript';
-      st.cm.setOption('mode', 'javascript');
-      if (langSel) langSel.value = 'javascript';
-    } else if (st.mode === 'sql-lab') {
-      st.lang = 'sql';
-      st.cm.setOption('mode', 'sql');
-      if (langSel) langSel.value = 'sql';
-    } else {
-      if (langSel) langSel.value = st.lang;
-      const modeMap = {
-        python: 'python',
-        javascript: 'javascript',
-        sql: 'sql',
-        java: 'text/x-java',
-        cpp: 'text/x-c++src'
-      };
-      st.cm.setOption('mode', modeMap[st.lang] || 'python');
+    /* ---- 3. Load code for question + effective language ---- */
+    if (st.cm) {
+      st.cm.setOption('mode', getCodeMirrorModeForLang(effectiveLang));
+      const drafts = pGet('drafts');
+      const saved = drafts[q.id + ':' + effectiveLang] || drafts[q.id];
+      const code = (saved != null) ? saved : getStarterCodeForLang(q, effectiveLang);
+      st.cm.setValue(code || '');
+      setTimeout(() => st.cm && st.cm.refresh(), 30);
     }
   },
 
@@ -1312,7 +1440,7 @@ const Coding = {
     window.OA_UI.show('codingView');
   },
 
-  renderAccentureList(all) {
+  renderAccentureList(all, skipQuestionRender) {
     const st = this.state;
     st.accDiff = st.accDiff || 'all';
     st.accSearch = st.accSearch || '';
@@ -1383,7 +1511,7 @@ const Coding = {
     $$('#codingQuestionList [data-acq]').forEach(b => b.addEventListener('click', () => {
       st.accList = list; st.accI = +b.dataset.acq;
       self.renderAccentureQuestion();
-      self.renderAccentureList(all);
+      self.renderAccentureList(all, true);
       if (window.innerWidth <= 1024) {
         setMobileActivePane($('#accMobileNav'), $('#accWorkbench'), 'problem');
       }
@@ -1395,15 +1523,37 @@ const Coding = {
     if (list.length) {
       st.accList = list;
       if (!st.accList.includes(st.accQ) || st.accI >= list.length) st.accI = 0;
-      this.renderAccentureQuestion();
+      if (!skipQuestionRender) this.renderAccentureQuestion();
     }
   },
 
   renderAccentureQuestion() {
     const st = this.state, q = st.accList[st.accI];
     if (!q) return;
+    st.accQ = q;
 
     const isFrontend = st.cat === 'frontend';
+
+    /* ---- 1. Reset console state & tabs to Test Cases ---- */
+    $$('#codingView [data-acctab]').forEach(t => t.classList.toggle('active', t.dataset.acctab === 'tests'));
+    const tcEl    = $('#accTestCases');
+    const cipEl   = $('#accCustomInputPane');
+    const outEl   = $('#runOutput');
+    const prevEl  = $('#frontendPreview');
+    const tgtEl   = $('#targetPreview');
+    const cipText = $('#accCustomInputText');
+
+    if (tcEl)    tcEl.hidden   = false;
+    if (cipEl)   cipEl.hidden  = true;
+    if (outEl) {
+      outEl.hidden = true;
+      outEl.innerHTML = isFrontend
+        ? 'Click "Run Preview ▶" to execute your code and get AI evaluation.'
+        : 'Click "Run Solution ▶" to execute your code.';
+    }
+    if (prevEl) { prevEl.hidden = true; prevEl.srcdoc = ''; }
+    if (tgtEl)  { tgtEl.hidden  = true; }
+    if (cipText) cipText.value = '';
 
     /* ---- Toggle single-file vs multi-file editor layout ---- */
     const singleWrap = document.getElementById('singleEditorWrap');
@@ -1481,6 +1631,15 @@ const Coding = {
       if (editorHost && !st.accCm) {
         editorHost.innerHTML = '';
         st.accCm = CodeMirror(editorHost, { lineNumbers: true, mode: 'python', autoCloseBrackets: true, matchBrackets: true, indentUnit: 4 });
+        st.accCm.on('change', () => {
+          const curQ = st.accQ;
+          if (!curQ) return;
+          const langSel = $('#editorLanguageSelect');
+          const curLang = (langSel && langSel.value) || (st.cat === 'sql' ? 'sql' : 'python');
+          const val = st.accCm.getValue();
+          pGet('drafts')[curQ.id + ':' + curLang] = val;
+          pGet('drafts')[curQ.id] = val;
+        });
       }
     }
 
@@ -1558,7 +1717,6 @@ const Coding = {
     attachExampleCopyHandlers($('#codingProblem'));
 
     /* ---- Console lower pane ---- */
-    const tcEl = $('#accTestCases');
     if (tcEl) {
       if (isFrontend) {
         const checks = q.previewChecks || [];
@@ -1587,41 +1745,24 @@ const Coding = {
 
     /* ---- Runtime badge ---- */
     const runtimeBadge = $('#accRuntimeBadge');
-    if (runtimeBadge) {
-      if (isFrontend)       runtimeBadge.textContent = 'HTML · CSS · JS · sandboxed iframe';
-      else if (st.cat === 'sql')  runtimeBadge.textContent = 'SQLite 3 · sql.js WASM';
-      else                  runtimeBadge.textContent = 'Python 3 · browser WASM';
-    }
 
-    /* ---- Single-file editor content (non-frontend) ---- */
+    /* ---- Single-file editor content (DSA / SQL) ---- */
     if (!isFrontend && st.accCm) {
-      let mode = 'python', startCode = '';
       const langSel = $('#editorLanguageSelect');
-      const isJs = (q.language === 'JavaScript') || (q.starterCode && typeof q.starterCode === 'string' && q.starterCode.includes('function '));
-      if (st.cat === 'sql') {
-        mode = 'sql';
-        startCode = q.starterCode || '';
-        if (langSel) langSel.value = 'sql';
-        if (runtimeBadge) runtimeBadge.textContent = 'SQLite 3 · sql.js WASM';
-      } else if (st.cat === 'dsa') {
-        if (isJs) {
-          mode = 'javascript';
-          startCode = q.starterCode || 'function solve(input) {\n  // Write solution here\n  \n}\n';
-          if (langSel) langSel.value = 'javascript';
-          if (runtimeBadge) runtimeBadge.textContent = 'JavaScript · in-browser V8 runtime';
-        } else {
-          mode = 'python';
-          startCode = q.starterCode || 'def solve(input_data):\n    # Write solution here\n    pass\n\nif __name__ == "__main__":\n    import sys\n    print(solve(sys.stdin.read()))\n';
-          if (langSel) langSel.value = 'python';
-          if (runtimeBadge) runtimeBadge.textContent = 'Python 3 · browser WASM';
-        }
-      } else {
-        mode = 'javascript';
-        startCode = q.starterCode || '';
-        if (langSel) langSel.value = 'javascript';
-      }
-      st.accCm.setOption('mode', mode);
-      const savedCode = pGet('drafts')[q.id];
+      let preferredLang = (langSel && (langSel.dataset.prevLang || langSel.value)) || 'python';
+      if (st.cat === 'sql') preferredLang = 'sql';
+      else if (preferredLang === 'sql') preferredLang = 'python';
+
+      const effectiveLang = populateLanguageSelect(langSel, st.cat, preferredLang, false);
+
+      if (runtimeBadge) runtimeBadge.textContent = getRuntimeBadgeText(effectiveLang, st.cat);
+
+      st.accCm.setOption('mode', getCodeMirrorModeForLang(effectiveLang));
+
+      const drafts = pGet('drafts');
+      const savedCode = drafts[q.id + ':' + effectiveLang] || drafts[q.id];
+      const startCode = getStarterCodeForLang(q, effectiveLang);
+
       st.accCm.setValue(savedCode != null ? savedCode : startCode);
       setTimeout(() => st.accCm && st.accCm.refresh(), 30);
     }
@@ -1749,7 +1890,11 @@ const Coding = {
 
     /* ============ DSA / SQL ============ */
     const code = st.accCm ? st.accCm.getValue() : '';
-    pGet('drafts')[q.id] = code; window.OA_UI.saveProgress();
+    const langSel = $('#editorLanguageSelect');
+    const lang = (langSel && langSel.value) || (st.cat === 'sql' ? 'sql' : 'python');
+    pGet('drafts')[q.id] = code;
+    pGet('drafts')[q.id + ':' + lang] = code;
+    window.OA_UI.saveProgress();
 
     switchAccTab('result');
     if (window.innerWidth <= 1024) {
@@ -1761,8 +1906,6 @@ const Coding = {
 
     try {
       if (st.cat === 'dsa') {
-        const langSel = $('#editorLanguageSelect');
-        const lang = (langSel && langSel.value) || (q.language ? q.language.toLowerCase() : 'javascript');
         const tests = (q.tests || []).slice(0, 10);
         const results = [];
         for (const t of tests) {
@@ -1904,15 +2047,20 @@ document.addEventListener('DOMContentLoaded', () => {
       if (st.cm_css)  st.cm_css.setValue(fq.css  || '');
       if (st.cm_js)   st.cm_js.setValue(fq.js   || '');
       // Clear saved drafts so reset sticks on reload
-      const d = window.OA_UI.progress.drafts || {};
+      const d = pGet('drafts');
       delete d[q.id + ':html']; delete d[q.id + ':css']; delete d[q.id + ':js'];
       window.OA_UI.saveProgress();
       window.OA_UI.toast('Code reset to starter.');
     } else if (st.accCm && q) {
-      let c = q.starterCode || '';
-      if (typeof c === 'object') c = Object.values(c)[0] || '';
-      st.accCm.setValue(c);
-      window.OA_UI.toast('Code reset.');
+      const langSel = $('#editorLanguageSelect');
+      const curLang = (langSel && langSel.value) || (st.cat === 'sql' ? 'sql' : 'python');
+      const d = pGet('drafts');
+      delete d[q.id];
+      delete d[q.id + ':' + curLang];
+      window.OA_UI.saveProgress();
+      const code = getStarterCodeForLang(q, curLang);
+      st.accCm.setValue(code || '');
+      window.OA_UI.toast('Code reset to ' + curLang + ' starter template.');
     }
   });
 
@@ -1951,7 +2099,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (st.accI > 0) {
         st.accI--;
         window.OA_CODING.Coding.renderAccentureQuestion();
-        window.OA_CODING.Coding.renderAccentureList(window.OA_BANKS.banks['accenture/coding'] || []);
+        window.OA_CODING.Coding.renderAccentureList(window.OA_BANKS.banks['accenture/coding'] || [], true);
       }
     });
   }
@@ -1962,7 +2110,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (st.accList && st.accI < st.accList.length - 1) {
         st.accI++;
         window.OA_CODING.Coding.renderAccentureQuestion();
-        window.OA_CODING.Coding.renderAccentureList(window.OA_BANKS.banks['accenture/coding'] || []);
+        window.OA_CODING.Coding.renderAccentureList(window.OA_BANKS.banks['accenture/coding'] || [], true);
       }
     });
   }
@@ -2129,17 +2277,37 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   const sel = document.getElementById('editorLanguageSelect');
-  if (sel) sel.addEventListener('change', function () {
-    const st = window.OA_CODING.Coding.state;
-    const map = { python: 'python', javascript: 'javascript', sql: 'sql' };
-    if (st.accCm) st.accCm.setOption('mode', map[this.value] || 'python');
-    const badge = document.getElementById('accRuntimeBadge');
-    if (badge) {
-      if (this.value === 'javascript') badge.textContent = 'JavaScript · in-browser V8 runtime';
-      else if (this.value === 'sql') badge.textContent = 'SQLite 3 · sql.js WASM';
-      else badge.textContent = 'Python 3 · in-browser Pyodide WASM';
-    }
-  });
+  if (sel) {
+    sel.addEventListener('change', function () {
+      const st = window.OA_CODING.Coding.state;
+      const q = st.accQ;
+      if (!q || !st.accCm) return;
+
+      const prevLang = this.dataset.prevLang || (st.cat === 'sql' ? 'sql' : 'python');
+      const newLang = this.value;
+      this.dataset.prevLang = newLang;
+
+      // 1. Save current editor content to draft for prevLang
+      const curCode = st.accCm.getValue();
+      const drafts = pGet('drafts');
+      drafts[q.id + ':' + prevLang] = curCode;
+      drafts[q.id] = curCode;
+      window.OA_UI.saveProgress();
+
+      // 2. Set CodeMirror mode
+      st.accCm.setOption('mode', getCodeMirrorModeForLang(newLang));
+
+      // 3. Update runtime badge
+      const badge = document.getElementById('accRuntimeBadge');
+      if (badge) badge.textContent = getRuntimeBadgeText(newLang, st.cat);
+
+      // 4. Retrieve draft for newLang, or generate starter code for newLang
+      const savedNewLang = drafts[q.id + ':' + newLang];
+      const newCode = (savedNewLang != null) ? savedNewLang : getStarterCodeForLang(q, newLang);
+      st.accCm.setValue(newCode || '');
+      setTimeout(() => st.accCm && st.accCm.refresh(), 30);
+    });
+  }
 
   /* ---- Rail toggle: expand/collapse sidebar for wider editor ---- */
   const railToggle = document.getElementById('railToggleBtn');
