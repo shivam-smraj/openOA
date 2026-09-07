@@ -466,7 +466,8 @@ function populateLanguageSelect(selectEl, category, currentLang, isCompanyWorkbe
     // Accenture / Coding Lab (DSA): DSA -> NO SQL in option!
     options = [
       { value: 'python', label: 'Python 3 (Pyodide WASM)' },
-      { value: 'javascript', label: 'JavaScript (Sandbox)' }
+      { value: 'javascript', label: 'JavaScript (Sandbox)' },
+      { value: 'java', label: 'Java (Solution Template)' }
     ];
   }
 
@@ -1907,31 +1908,59 @@ const Coding = {
     try {
       if (st.cat === 'dsa') {
         const tests = (q.tests || []).slice(0, 10);
-        const results = [];
-        for (const t of tests) {
-          const stdinText = (t.args || []).join('\n');
-          let r;
-          if (lang === 'javascript') {
-            r = runJsDsa(code, stdinText);
-          } else {
-            r = await runPythonDsa(code, stdinText);
+        let results = [];
+        if (lang === 'java' || lang === 'cpp') {
+          out.innerHTML = '<div class="fe-loading"><div class="fe-loading-spinner"></div><p>Evaluating ' + esc(lang.toUpperCase()) + ' solution via Gemini AI OA Judge…</p></div>';
+          try {
+            const sim = await window.OA_AI.llmCodeRunner(q.title || 'Coding Problem', q.prompt || '', lang, code, tests);
+            results = (sim && sim.results) || [];
+          } catch (simErr) {
+            results = tests.map((t, k) => ({
+              name: t.name || ('Case ' + (k + 1)),
+              pass: false,
+              input: (t.args || []).join('\n'),
+              expected: t.expected,
+              actual: 'Evaluation unavailable',
+              error: simErr.message
+            }));
           }
-          const got = norm(r.stdout);
-          const exp = norm(t.expected);
-          const ok = (got === exp || got.toLowerCase() === exp.toLowerCase()) && !r.error;
-          results.push({
-            name: t.name,
-            pass: ok,
-            input: stdinText,
-            expected: exp,
-            actual: r.error ? null : got,
-            error: r.error
-          });
+        } else if (lang === 'javascript') {
+          for (const t of tests) {
+            const stdinText = (t.args || []).join('\n');
+            const r = runJsDsa(code, stdinText);
+            const got = norm(r.stdout);
+            const exp = norm(t.expected);
+            const ok = (got === exp || got.toLowerCase() === exp.toLowerCase()) && !r.error;
+            results.push({
+              name: t.name,
+              pass: ok,
+              input: stdinText,
+              expected: exp,
+              actual: r.error ? null : got,
+              error: r.error
+            });
+          }
+        } else {
+          for (const t of tests) {
+            const stdinText = (t.args || []).join('\n');
+            const r = await runPythonDsa(code, stdinText);
+            const got = norm(r.stdout);
+            const exp = norm(t.expected);
+            const ok = (got === exp || got.toLowerCase() === exp.toLowerCase()) && !r.error;
+            results.push({
+              name: t.name,
+              pass: ok,
+              input: stdinText,
+              expected: exp,
+              actual: r.error ? null : got,
+              error: r.error
+            });
+          }
         }
         renderDsaResults(results, out, q, code, lang, () => {
           window.OA_UI.recordAnswer(q.id, 0, true);
           toast('🎉 All tests passed — solved!');
-          Coding.renderAccentureList(window.OA_BANKS.banks['accenture/coding'] || []);
+          Coding.renderAccentureList(window.OA_BANKS.banks['accenture/coding'] || [], true);
         });
       } else if (st.cat === 'sql') {
         const r = await runSql(code, q);
@@ -2140,7 +2169,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         let r;
-        if (lang === 'javascript') {
+        if (lang === 'java' || lang === 'cpp') {
+          try {
+            const sim = await window.OA_AI.llmCodeRunner(q.title || 'Coding Problem', q.prompt || '', lang, code, [{ name: 'Custom Input', args: [customStdin], expected: '' }]);
+            const res0 = (sim && sim.results && sim.results[0]) || {};
+            r = { stdout: res0.actual || '', error: res0.error || null };
+          } catch (e) {
+            r = { stdout: '', error: e.message || String(e) };
+          }
+        } else if (lang === 'javascript') {
           r = runJsDsa(code, customStdin);
         } else if (st.cat === 'sql') {
           r = await runSql(code, q);
