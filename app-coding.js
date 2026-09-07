@@ -64,6 +64,177 @@ function norm(s) {
   return String(s == null ? '' : s).replace(/\r/g, '').trim();
 }
 
+/* ---------- Visual Diff Viewer ---------- */
+function buildVisualDiff(expected, actual) {
+  if (actual == null || expected == null) return '';
+  const exp = String(expected).replace(/\r/g, '');
+  const act = String(actual).replace(/\r/g, '');
+  if (exp === act) return '';
+  const expLines = exp.split('\n');
+  const actLines = act.split('\n');
+  const maxL = Math.max(expLines.length, actLines.length);
+  let diffLines = '';
+  for (let i = 0; i < maxL; i++) {
+    const el = expLines[i];
+    const al = actLines[i];
+    if (el === al) {
+      diffLines += '<div class="diff-line diff-line-match"><span class="diff-badge">MATCH</span> <span>' + esc(el) + '</span></div>';
+    } else {
+      if (el !== undefined) {
+        diffLines += '<div class="diff-line diff-line-expected"><span class="diff-badge">- EXP</span> <span>' + esc(el) + '</span></div>';
+      }
+      if (al !== undefined) {
+        diffLines += '<div class="diff-line diff-line-actual"><span class="diff-badge">+ ACT</span> <span>' + esc(al) + '</span></div>';
+      }
+    }
+  }
+  return '<div class="diff-view-box"><div style="font-size:10.5px;color:var(--text-muted);font-weight:700;margin-bottom:2px;text-transform:uppercase;letter-spacing:0.5px">Output Comparison</div>' + diffLines + '</div>';
+}
+
+/* ---------- Editor Font Scaling & State ---------- */
+let currentEditorFontSize = parseInt(localStorage.getItem('oa-editor-font-size') || '13', 10);
+function applyEditorFontSize(size, refreshEditors) {
+  currentEditorFontSize = Math.max(11, Math.min(20, size));
+  localStorage.setItem('oa-editor-font-size', String(currentEditorFontSize));
+  document.documentElement.style.setProperty('--cm-font-size', currentEditorFontSize + 'px');
+  $$('.editor-font-val').forEach(el => { el.textContent = currentEditorFontSize + 'px'; });
+  if (refreshEditors) {
+    setTimeout(() => {
+      const st = window.OA_CODING && window.OA_CODING.Coding && window.OA_CODING.Coding.state;
+      if (st) {
+        st.accCm && st.accCm.refresh();
+        st.cm_html && st.cm_html.refresh();
+        st.cm_css && st.cm_css.refresh();
+        st.cm_js && st.cm_js.refresh();
+        st.cm && st.cm.refresh();
+      }
+    }, 40);
+  }
+}
+// Set initial CSS property
+document.documentElement.style.setProperty('--cm-font-size', currentEditorFontSize + 'px');
+
+/* ---------- Workbench Mobile Navigation Helper (< 1024px) ---------- */
+function setupWorkbenchMobileNav(navRoot, workbench) {
+  if (!navRoot || !workbench) return;
+  const tabs = navRoot.querySelectorAll('[data-wmn]');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const pane = tab.dataset.wmn;
+      workbench.setAttribute('data-active-pane', pane);
+      tabs.forEach(t => t.classList.toggle('active', t === tab));
+      if (pane === 'editor' || pane === 'console') {
+        setTimeout(() => {
+          const st = window.OA_CODING && window.OA_CODING.Coding && window.OA_CODING.Coding.state;
+          if (st) {
+            st.accCm && st.accCm.refresh();
+            st.cm_html && st.cm_html.refresh();
+            st.cm_css && st.cm_css.refresh();
+            st.cm_js && st.cm_js.refresh();
+            st.cm && st.cm.refresh();
+          }
+        }, 50);
+      }
+    });
+  });
+}
+
+function setMobileActivePane(navRoot, workbench, paneName) {
+  if (!workbench) return;
+  workbench.setAttribute('data-active-pane', paneName);
+  if (navRoot) {
+    navRoot.querySelectorAll('[data-wmn]').forEach(t => {
+      t.classList.toggle('active', t.dataset.wmn === paneName);
+    });
+  }
+}
+
+/* ---------- Editor Tools Group (Font, Wrap, Copy, Zen) ---------- */
+function setupEditorToolGroup(container, getActiveCm, getCodeFn) {
+  if (!container) return;
+  const btnMinus = container.querySelector('.btn-editor-tool[id$="FontMinus"]');
+  const btnPlus = container.querySelector('.btn-editor-tool[id$="FontPlus"]');
+  const btnWrap = container.querySelector('.btn-editor-tool[id$="WrapToggle"]');
+  const btnCopy = container.querySelector('.btn-editor-tool[id$="CopyCode"]');
+  const btnZen = container.querySelector('.btn-editor-tool[id$="ZenToggle"]');
+  const fontVal = container.querySelector('.editor-font-val');
+
+  if (fontVal) fontVal.textContent = currentEditorFontSize + 'px';
+
+  if (btnMinus && !btnMinus._wired) {
+    btnMinus._wired = true;
+    btnMinus.addEventListener('click', () => {
+      applyEditorFontSize(currentEditorFontSize - 1, true);
+    });
+  }
+  if (btnPlus && !btnPlus._wired) {
+    btnPlus._wired = true;
+    btnPlus.addEventListener('click', () => {
+      applyEditorFontSize(currentEditorFontSize + 1, true);
+    });
+  }
+  if (btnWrap && !btnWrap._wired) {
+    btnWrap._wired = true;
+    btnWrap.addEventListener('click', () => {
+      const cm = getActiveCm();
+      if (!cm) return;
+      const curWrap = !!cm.getOption('lineWrapping');
+      const nextWrap = !curWrap;
+      cm.setOption('lineWrapping', nextWrap);
+      btnWrap.classList.toggle('active', nextWrap);
+      toast(nextWrap ? 'Line wrapping enabled' : 'Line wrapping disabled');
+    });
+  }
+  if (btnCopy && !btnCopy._wired) {
+    btnCopy._wired = true;
+    btnCopy.addEventListener('click', () => {
+      const code = getCodeFn();
+      if (code == null) return;
+      navigator.clipboard.writeText(code).then(() => {
+        toast('Code copied to clipboard 📋');
+      }).catch(() => {
+        toast('Failed to copy code');
+      });
+    });
+  }
+  if (btnZen && !btnZen._wired) {
+    btnZen._wired = true;
+    btnZen.addEventListener('click', () => {
+      const sheet = container.closest('.editor-sheet');
+      if (!sheet) return;
+      const isZen = sheet.classList.toggle('zen-mode');
+      btnZen.classList.toggle('active', isZen);
+      btnZen.textContent = isZen ? '✕' : '⛶';
+      btnZen.title = isZen ? 'Exit Zen mode (Esc)' : 'Zen fullscreen mode';
+      toast(isZen ? 'Zen mode active (Press Esc to exit)' : 'Exited Zen mode');
+      setTimeout(() => {
+        const cm = getActiveCm();
+        if (cm) cm.refresh();
+      }, 50);
+    });
+  }
+}
+
+/* ---------- 1-Click Copy on Example Cards ---------- */
+function attachExampleCopyHandlers(container) {
+  if (!container) return;
+  container.querySelectorAll('.btn-copy-example').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const textToCopy = btn.dataset.copyVal != null ? btn.dataset.copyVal : '';
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '✓ Copied!';
+        setTimeout(() => { btn.innerHTML = orig; }, 1500);
+        toast('Test case input copied to clipboard');
+      }).catch(() => {
+        toast('Copy failed');
+      });
+    };
+  });
+}
+
+
 async function runPython(code, stdinText) {
   const py = await loadPyodideRuntime();
   const runnerScript =
@@ -288,6 +459,7 @@ function renderDsaResults(results, out, q, code, lang, onSolved) {
   <div class="test-results">`;
 
   results.forEach((r, i) => {
+    const hasDiff = !r.pass && !r.error && r.actual != null && r.expected != null;
     html += `<div class="test-result ${r.pass ? 'pass' : 'fail'}">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <b>${r.pass ? '✅ Pass' : '❌ Fail'} — ${esc(r.name || `Case ${i + 1}`)}</b>
@@ -296,6 +468,7 @@ function renderDsaResults(results, out, q, code, lang, onSolved) {
         <code><span style="color:var(--text-muted)">Input:</span> ${esc(r.input ? r.input.replace(/\n/g, ' ↵ ') : 'N/A')}</code>
         <code><span style="color:var(--text-muted)">Expected:</span> ${esc(r.expected)}</code>
         <code><span style="color:var(--text-muted)">Actual:</span> ${esc(r.error ? `Runtime error: ${r.error}` : (r.actual != null ? r.actual : 'None'))}</code>
+        ${hasDiff ? buildVisualDiff(r.expected, r.actual) : ''}
       </div>
     </div>`;
   });
@@ -353,14 +526,22 @@ const Coding = {
 
   mount(root, mode, questions, title) {
     const st = this.state;
-    st.mode = mode; st.list = questions; st.i = 0; st.search = ''; st.catTitle = title || 'Coding';
+    st.mode = mode; st.list = questions; st.i = 0; st.search = ''; st.diff = 'all'; st.catTitle = title || 'Coding';
     if (mode === 'coding-fn' || mode === 'coding-stdin') st.lang = 'python';
     else if (mode === 'code-check') st.lang = 'javascript';
     else if (mode === 'sql-lab') st.lang = 'sql';
     else st.lang = 'python';
 
     root.innerHTML =
-      '<div class="coding-workbench">' +
+      '<div class="coding-workbench" id="cWorkbench">' +
+      '<!-- Mobile Segmented View Navigation (< 1024px) -->' +
+      '<nav class="workbench-mobile-nav" id="cMobileNav" role="tablist" aria-label="Workbench view mode">' +
+      '<button type="button" class="wmn-tab" data-wmn="rail">☰ Problems</button>' +
+      '<button type="button" class="wmn-tab active" data-wmn="problem">📄 Problem</button>' +
+      '<button type="button" class="wmn-tab" data-wmn="editor">💻 Code</button>' +
+      '<button type="button" class="wmn-tab" data-wmn="console">🧪 Output</button>' +
+      '</nav>' +
+
       '<!-- Column 1: Rail -->' +
       '<aside class="coding-rail" id="cRail">' +
       '<div class="coding-rail-head">' +
@@ -370,6 +551,21 @@ const Coding = {
       '</div>' +
       '<button type="button" class="rail-toggle-btn" id="cRailToggleBtn" title="Collapse problem list (wider code view)">◀</button>' +
       '</div>' +
+      '<div class="rail-filter-panel">' +
+      '<div class="rail-search-box">' +
+      '<span class="rail-search-icon">🔍</span>' +
+      '<input type="search" id="cRailSearch" class="rail-search-input" placeholder="Search problems (Ctrl+/)..." aria-label="Search problems">' +
+      '</div>' +
+      '<div class="rail-diff-filters" role="group" aria-label="Difficulty filter">' +
+      '<button type="button" class="diff-filter-pill active" data-c-diff="all">All</button>' +
+      '<button type="button" class="diff-filter-pill" data-c-diff="easy">Easy</button>' +
+      '<button type="button" class="diff-filter-pill" data-c-diff="medium">Med</button>' +
+      '<button type="button" class="diff-filter-pill" data-c-diff="hard">Hard</button>' +
+      '</div>' +
+      '<div class="rail-progress-track" title="Solved progress">' +
+      '<div class="rail-progress-fill" id="cRailProgress" style="width: 0%"></div>' +
+      '</div>' +
+      '</div>' +
       '<div class="coding-rail-list" id="cList" role="tablist" aria-label="Problems"></div>' +
       '<div class="coding-rail-foot">' +
       '<span id="cRailFootInfo">' + questions.length + ' problems</span>' +
@@ -377,19 +573,24 @@ const Coding = {
       '</aside>' +
 
       '<!-- Column 2: Problem Pane -->' +
-      '<section class="problem-pane">' +
+      '<section class="problem-pane" id="cProblemPane">' +
       '<header class="panel-toolbar">' +
-      '<div class="panel-title-group"><span class="panel-icon">≡</span><strong>Description</strong></div>' +
+      '<div class="panel-title-group"><span class="panel-icon">📄</span><strong>Description</strong></div>' +
+      '<div class="problem-nav-buttons">' +
+      '<button type="button" class="btn-problem-nav" id="cProbPrevBtn" title="Previous problem (Alt+Left)">◀ Prev</button>' +
       '<span id="cPos" class="panel-pos"></span>' +
+      '<button type="button" class="btn-problem-nav" id="cProbNextBtn" title="Next problem (Alt+Right)">Next ▶</button>' +
+      '</div>' +
       '</header>' +
       '<article class="problem-sheet" id="cProblem"></article>' +
       '</section>' +
 
       '<!-- Column 3: Editor Sheet -->' +
-      '<section class="editor-sheet">' +
+      '<section class="editor-sheet" id="cEditorSheet">' +
       '<div class="editor-toolbar">' +
+      '<div class="editor-toolbar-start">' +
       '<div class="editor-lang-wrap">' +
-      '<span class="editor-code-icon"><code>{ }</code> Code</span>' +
+      '<span class="editor-code-icon"><code>&lt;/&gt;</code></span>' +
       '<select id="cLangSelect" class="editor-lang-select">' +
       '<option value="python"' + (st.lang === 'python' ? ' selected' : '') + '>Python 3 (Live WASM)</option>' +
       '<option value="javascript"' + (st.lang === 'javascript' ? ' selected' : '') + '>JavaScript (Live V8)</option>' +
@@ -398,26 +599,45 @@ const Coding = {
       '<option value="sql"' + (st.lang === 'sql' ? ' selected' : '') + '>SQL (sql.js WASM)</option>' +
       '</select>' +
       '</div>' +
+      '</div>' +
+      '<div class="editor-toolbar-end">' +
+      '<div class="editor-tools-group">' +
+      '<button type="button" class="btn-editor-tool" id="cFontMinus" title="Decrease font size">A-</button>' +
+      '<span class="editor-font-val" id="cFontVal">13px</span>' +
+      '<button type="button" class="btn-editor-tool" id="cFontPlus" title="Increase font size">A+</button>' +
+      '<button type="button" class="btn-editor-tool" id="cWrapToggle" title="Toggle line wrap">Wrap</button>' +
+      '<button type="button" class="btn-editor-tool" id="cCopyCode" title="Copy code to clipboard">Copy</button>' +
+      '<button type="button" class="btn-editor-tool" id="cZenToggle" title="Zen fullscreen mode">⛶</button>' +
+      '</div>' +
       '<div class="editor-actions">' +
       '<button id="cReset" class="btn-editor-action" type="button">Reset</button>' +
-      '<button id="cRun" class="btn-editor-run" type="button">Run &#9654;</button>' +
+      '<button id="cRun" class="btn-editor-run" type="button">Run ▶</button>' +
+      '</div>' +
       '</div>' +
       '</div>' +
       '<div class="code-editor-wrap">' +
       '<textarea id="cCode"></textarea>' +
       '</div>' +
-      '<section class="console-pane">' +
+      '<section class="console-pane" id="cConsolePane">' +
       '<header class="console-toolbar">' +
       '<div class="console-tabs" role="tablist">' +
       '<button type="button" class="console-tab active" data-ctab="tests">Test cases</button>' +
-      '<button type="button" class="console-tab" data-ctab="result">Result</button>' +
+      '<button type="button" class="console-tab" data-ctab="custom" id="cCustomTab">Custom Input</button>' +
+      '<button type="button" class="console-tab" data-ctab="result" id="cResultTab">Result</button>' +
       '<button type="button" class="console-tab" data-ctab="preview" id="cPreviewTab" hidden>Preview</button>' +
       '</div>' +
       '<span class="console-runtime-badge" id="cRuntimeBadge">Python 3 · browser WASM</span>' +
       '</header>' +
       '<div class="console-body">' +
       '<div id="cTestCases" class="console-test-cases"></div>' +
-      '<div id="cOut" class="run-output" hidden>Click "Run &#9654;" to execute your solution.</div>' +
+      '<div id="cCustomInputPane" class="custom-input-pane" hidden>' +
+      '<div class="cip-header">' +
+      '<span>Enter custom standard input to test your code:</span>' +
+      '<button type="button" class="btn-cip-run" id="btnRunCCustom">Run with Custom Input ▶</button>' +
+      '</div>' +
+      '<textarea id="cCustomInputText" class="custom-input-textarea" placeholder="Paste or type test input here..."></textarea>' +
+      '</div>' +
+      '<div id="cOut" class="run-output" hidden>Click "Run ▶" to execute your solution.</div>' +
       '<iframe id="cPreview" class="frontend-preview" title="preview" sandbox="allow-scripts" hidden></iframe>' +
       '</div>' +
       '</section>' +
@@ -425,10 +645,64 @@ const Coding = {
       '</div>';
 
     const self = this;
-    $('#cRun').addEventListener('click', () => self.run());
-    $('#cReset').addEventListener('click', () => self.reset());
+    $('#cRun', root).addEventListener('click', () => self.run());
+    $('#cReset', root).addEventListener('click', () => self.reset());
 
-    const cRailToggle = $('#cRailToggleBtn');
+    // Setup mobile segmented navigation
+    const cMobileNav = $('#cMobileNav', root);
+    const cWb = $('#cWorkbench', root);
+    if (cMobileNav && cWb) {
+      setupWorkbenchMobileNav(cMobileNav, cWb);
+    }
+
+    // Setup editor tools
+    const cEditorSheet = $('#cEditorSheet', root);
+    if (cEditorSheet) {
+      setupEditorToolGroup(cEditorSheet, () => st.cm, () => st.cm ? st.cm.getValue() : '');
+    }
+
+    // Prev / Next buttons
+    const prevBtn = $('#cProbPrevBtn', root);
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        if (st.i > 0) {
+          st.i--;
+          self.renderList();
+          self.render();
+        }
+      });
+    }
+    const nextBtn = $('#cProbNextBtn', root);
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        const vis = self.visibleList();
+        if (st.i < vis.length - 1) {
+          st.i++;
+          self.renderList();
+          self.render();
+        }
+      });
+    }
+
+    // Rail Search & Difficulty Filters
+    const cSearch = $('#cRailSearch', root);
+    if (cSearch) {
+      cSearch.addEventListener('input', () => {
+        st.search = cSearch.value;
+        st.i = 0;
+        self.renderList();
+      });
+    }
+    $$('#sectionEngine [data-c-diff]').forEach(pill => {
+      pill.addEventListener('click', () => {
+        st.diff = pill.dataset.cDiff;
+        $$('#sectionEngine [data-c-diff]').forEach(p => p.classList.toggle('active', p === pill));
+        st.i = 0;
+        self.renderList();
+      });
+    });
+
+    const cRailToggle = $('#cRailToggleBtn', root);
     if (cRailToggle) {
       cRailToggle.addEventListener('click', () => {
         const wb = root.querySelector('.coding-workbench');
@@ -445,26 +719,67 @@ const Coding = {
       tab.addEventListener('click', () => {
         $$('#sectionEngine [data-ctab]').forEach(t => t.classList.toggle('active', t === tab));
         const target = tab.dataset.ctab;
-        const tc = $('#cTestCases');
-        const out = $('#cOut');
-        const pv = $('#cPreview');
-        if (target === 'tests') {
-          if (tc) tc.hidden = false;
-          if (out) out.hidden = true;
-          if (pv) pv.hidden = true;
-        } else if (target === 'result') {
-          if (tc) tc.hidden = true;
-          if (out) out.hidden = false;
-          if (pv) pv.hidden = true;
-        } else if (target === 'preview') {
-          if (tc) tc.hidden = true;
-          if (out) out.hidden = true;
-          if (pv) pv.hidden = false;
-        }
+        const tc = $('#cTestCases', root);
+        const cip = $('#cCustomInputPane', root);
+        const out = $('#cOut', root);
+        const pv = $('#cPreview', root);
+        if (tc) tc.hidden = (target !== 'tests');
+        if (cip) cip.hidden = (target !== 'custom');
+        if (out) out.hidden = (target !== 'result');
+        if (pv) pv.hidden = (target !== 'preview');
       });
     });
 
-    const langSel = $('#cLangSelect');
+    // Custom runner button
+    const btnCustom = $('#btnRunCCustom', root);
+    if (btnCustom) {
+      btnCustom.addEventListener('click', async () => {
+        const curQ = self.visibleList()[st.i];
+        if (!curQ) return;
+        const customStdin = ($('#cCustomInputText', root) && $('#cCustomInputText', root).value) || '';
+        const code = st.cm ? st.cm.getValue() : '';
+        const curLang = ($('#cLangSelect', root) && $('#cLangSelect', root).value) || st.lang || 'python';
+
+        $$('#sectionEngine [data-ctab]').forEach(t => t.classList.toggle('active', t.dataset.ctab === 'result'));
+        const tc = $('#cTestCases', root); if (tc) tc.hidden = true;
+        const cip = $('#cCustomInputPane', root); if (cip) cip.hidden = true;
+        const out = $('#cOut', root); if (out) { out.hidden = false; out.innerHTML = '<div class="fe-loading"><div class="fe-loading-spinner"></div><p>Executing with custom input…</p></div>'; }
+        const pv = $('#cPreview', root); if (pv) pv.hidden = true;
+
+        if (window.innerWidth <= 1024) {
+          setMobileActivePane($('#cMobileNav', root), $('#cWorkbench', root), 'console');
+        }
+
+        try {
+          let r;
+          if (curLang === 'javascript') {
+            r = runJsDsa(code, customStdin);
+          } else if (curLang === 'sql' || st.mode === 'sql-lab') {
+            r = await runSql(code, curQ);
+          } else {
+            r = await runPythonDsa(code, customStdin);
+          }
+          const hasErr = !!r.error;
+          let html = '<div class="test-summary ' + (hasErr ? 'none-pass' : 'all-pass') + '">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center">' +
+            '<strong>' + (hasErr ? '❌ Custom Run Error' : '✅ Custom Run Succeeded') + '</strong>' +
+            '<span style="font-size:11.5px;opacity:0.9">' + (hasErr ? 'Runtime Exception' : 'Standard I/O') + '</span>' +
+            '</div></div>';
+          html += '<div class="test-results">' +
+            '<div class="test-result ' + (hasErr ? 'fail' : 'pass') + '">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center"><b>' + (hasErr ? '❌ Execution Error' : '✅ Standard Output') + '</b></div>' +
+            '<div style="margin-top:6px;display:flex;flex-direction:column;gap:8px">' +
+            '<div><span style="color:var(--text-muted);font-size:11.5px">Custom Input (stdin):</span><pre class="ccc-pre" style="margin-top:2px;padding:8px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;font-family:var(--font-mono);font-size:12px">' + esc(customStdin || '(empty stdin)') + '</pre></div>' +
+            '<div><span style="color:var(--text-muted);font-size:11.5px">' + (hasErr ? 'Error:' : 'Output (stdout):') + '</span><pre class="ccc-pre" style="margin-top:2px;padding:8px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;font-family:var(--font-mono);font-size:12px;color:' + (hasErr ? 'var(--color-error)' : 'var(--text-primary)') + '">' + esc(r.error || r.stdout || '(no output produced)') + '</pre></div>' +
+            '</div></div></div>';
+          out.innerHTML = html;
+        } catch (err) {
+          out.innerHTML = '<div class="test-summary none-pass"><strong>Runner Error</strong></div><div class="test-result fail"><code>' + esc(err.message || String(err)) + '</code></div>';
+        }
+      });
+    }
+
+    const langSel = $('#cLangSelect', root);
     if (langSel) {
       langSel.addEventListener('change', function () {
         st.lang = this.value;
@@ -476,7 +791,7 @@ const Coding = {
           cpp: 'text/x-c++src'
         };
         if (st.cm) st.cm.setOption('mode', modeMap[this.value] || 'python');
-        const badge = $('#cRuntimeBadge');
+        const badge = $('#cRuntimeBadge', root);
         if (badge) {
           if (this.value === 'python') badge.textContent = 'Python 3 · browser WASM';
           else if (this.value === 'javascript') badge.textContent = 'JavaScript · browser V8 runtime';
@@ -545,10 +860,17 @@ const Coding = {
   visibleList() {
     const st = this.state;
     let list = st.list;
-    if (st.search) list = list.filter(q =>
-      (q.title || '').toLowerCase().includes(st.search) ||
-      (q.prompt || '').toLowerCase().includes(st.search) ||
-      (q.topic || '').toLowerCase().includes(st.search));
+    if (st.diff && st.diff !== 'all') {
+      list = list.filter(q => (q.difficulty || 'easy').toLowerCase() === st.diff.toLowerCase());
+    }
+    if (st.search) {
+      const s = st.search.toLowerCase().trim();
+      list = list.filter(q =>
+        (q.title || '').toLowerCase().includes(s) ||
+        (q.prompt || '').toLowerCase().includes(s) ||
+        (q.topic || '').toLowerCase().includes(s) ||
+        (q.id || '').toLowerCase().includes(s));
+    }
     return list;
   },
 
@@ -556,9 +878,14 @@ const Coding = {
     const st = this.state;
     const list = this.visibleList();
     if (st.i >= list.length) st.i = 0;
-    const solvedCount = list.filter(q => pDone(q.id)).length;
+    const totalCount = st.list.length;
+    const solvedCount = st.list.filter(q => pDone(q.id)).length;
+    const pct = totalCount ? Math.round((solvedCount / totalCount) * 100) : 0;
+    const progFill = $('#cRailProgress');
+    if (progFill) progFill.style.width = pct + '%';
+
     const footInfo = $('#cRailFootInfo');
-    if (footInfo) footInfo.textContent = (solvedCount ? solvedCount + ' solved · ' : '') + list.length + ' total';
+    if (footInfo) footInfo.textContent = (solvedCount ? solvedCount + ' solved · ' : '') + list.length + (list.length !== totalCount ? ' matching (' + totalCount + ' total)' : ' total');
     const catEl = $('#cRailCat');
     if (catEl && st.catTitle) catEl.textContent = st.catTitle;
 
@@ -580,6 +907,9 @@ const Coding = {
       st.i = +b.dataset.cq;
       self.renderList();
       self.render();
+      if (window.innerWidth <= 1024) {
+        setMobileActivePane($('#cMobileNav'), $('#cWorkbench'), 'problem');
+      }
       const stEl = $('.coding-workbench');
       if (stEl) stEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
@@ -608,6 +938,11 @@ const Coding = {
     const q = list[st.i];
     if (!q) { $('#cProblem').innerHTML = '<div class="no-results"><strong>No matches.</strong><p>Try another search.</p></div>'; return; }
     $('#cPos').textContent = (st.i + 1) + ' of ' + list.length;
+
+    const prevBtn = $('#cProbPrevBtn');
+    const nextBtn = $('#cProbNextBtn');
+    if (prevBtn) prevBtn.disabled = st.i <= 0;
+    if (nextBtn) nextBtn.disabled = st.i >= list.length - 1;
 
     const pubTests = (q.tests || []).slice(0, q.publicTestCount || 3);
     const isFrontend = st.mode === 'code-check' || q.framework || q.filename || (q.previewChecks && q.previewChecks.length);
@@ -646,8 +981,11 @@ const Coding = {
     if (pubTests.length) {
       body += '<h3>Examples</h3><div class="problem-examples">';
       pubTests.forEach((t, k) => {
-        body += '<div class="problem-example"><strong>Example ' + (k + 1) + (t.name ? ' - ' + esc(t.name) : '') + '</strong>' +
-          '<pre><span>Input:</span> ' + esc((t.args || []).join('\n')) + '\n<span>Output:</span> ' + esc(t.expected) + '</pre>' +
+        const inputStr = (t.args || []).join('\n');
+        body += '<div class="problem-example">' +
+          '<button type="button" class="btn-copy-example" data-copy-val="' + esc(inputStr) + '" title="Copy example input">📋 Copy</button>' +
+          '<strong>Example ' + (k + 1) + (t.name ? ' - ' + esc(t.name) : '') + '</strong>' +
+          '<pre><span>Input:</span> ' + esc(inputStr) + '\n<span>Output:</span> ' + esc(t.expected) + '</pre>' +
           (t.explanation ? '<small>' + esc(t.explanation) + '</small>' : '') + '</div>';
       });
       body += '</div>';
@@ -662,6 +1000,7 @@ const Coding = {
     if (q.guidance) body += '<details class="problem-approach"><summary>Approach hint</summary><p>' + esc(q.guidance) + '</p></details>';
 
     $('#cProblem').innerHTML = body;
+    attachExampleCopyHandlers($('#cProblem'));
 
     // Test cases in console
     const tcEl = $('#cTestCases');
@@ -677,7 +1016,7 @@ const Coding = {
       } else if (q.previewChecks && q.previewChecks.length) {
         tcEl.innerHTML = '<div class="console-case-card"><div class="ccc-head"><strong>Preview Checks</strong></div><ul class="problem-constraints">' + q.previewChecks.map(c => '<li>' + esc(c) + '</li>').join('') + '</ul></div>';
       } else {
-        tcEl.innerHTML = '<div class="console-case-card"><p class="runner-note">No public test cases specified. Click "Run &#9654;" to test your solution.</p></div>';
+        tcEl.innerHTML = '<div class="console-case-card"><p class="runner-note">No public test cases specified. Click "Run ▶" to test your solution.</p></div>';
       }
     }
 
@@ -742,8 +1081,13 @@ const Coding = {
     // Switch console tab to Result
     $$('#sectionEngine [data-ctab]').forEach(t => t.classList.toggle('active', t.dataset.ctab === 'result'));
     const tc = $('#cTestCases'); if (tc) tc.hidden = true;
+    const cip = $('#cCustomInputPane'); if (cip) cip.hidden = true;
     const out = $('#cOut'); if (out) { out.hidden = false; out.innerHTML = '<p class="runner-note">Running tests...</p>'; }
     const pv = $('#cPreview'); if (pv) pv.hidden = true;
+
+    if (window.innerWidth <= 1024) {
+      setMobileActivePane($('#cMobileNav'), $('#cWorkbench'), 'console');
+    }
 
     function renderResults(results, kind) {
       const pass = results.filter(r => r.pass).length;
@@ -753,14 +1097,17 @@ const Coding = {
         '<strong>' + pass + ' / ' + results.length + ' ' + kind + ' passed</strong>' +
         '<span style="font-size:11.5px;opacity:0.9">' + (all ? 'Solved' : 'Review failing cases') + '</span>' +
         '</div></div>';
-      html += '<div class="test-results">' + results.map((r, k) =>
-        '<div class="test-result ' + (r.pass ? 'pass' : 'fail') + '">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center"><b>' + (r.pass ? '✅ Pass' : '❌ Fail') + ' - ' + esc(r.name || ('Case ' + (k + 1))) + '</b></div>' +
-        '<div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">' +
-        (r.input ? '<code><span style="color:var(--text-muted)">Input:</span> ' + esc(r.input.replace(/\n/g, ' ↵ ')) + '</code>' : '') +
-        '<code><span style="color:var(--text-muted)">Expected:</span> ' + esc(r.expected) + '</code>' +
-        '<code><span style="color:var(--text-muted)">Actual:</span> ' + esc(r.error ? 'Runtime error: ' + r.error : (r.actual != null ? r.actual : 'None')) + '</code>' +
-        '</div></div>').join('') + '</div>';
+      html += '<div class="test-results">' + results.map((r, k) => {
+        const hasDiff = !r.pass && !r.error && r.actual != null && r.expected != null;
+        return '<div class="test-result ' + (r.pass ? 'pass' : 'fail') + '">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center"><b>' + (r.pass ? '✅ Pass' : '❌ Fail') + ' - ' + esc(r.name || ('Case ' + (k + 1))) + '</b></div>' +
+          '<div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">' +
+          (r.input ? '<code><span style="color:var(--text-muted)">Input:</span> ' + esc(r.input.replace(/\n/g, ' ↵ ')) + '</code>' : '') +
+          '<code><span style="color:var(--text-muted)">Expected:</span> ' + esc(r.expected) + '</code>' +
+          '<code><span style="color:var(--text-muted)">Actual:</span> ' + esc(r.error ? 'Runtime error: ' + r.error : (r.actual != null ? r.actual : 'None')) + '</code>' +
+          (hasDiff ? buildVisualDiff(r.expected, r.actual) : '') +
+          '</div></div>';
+      }).join('') + '</div>';
 
       if (!all) {
         html += '<div id="cAiHintContainer" style="margin-top:14px">' +
@@ -967,11 +1314,57 @@ const Coding = {
 
   renderAccentureList(all) {
     const st = this.state;
-    const list = all.filter(q => q.category === st.cat);
-    const solvedN = list.filter(q => pDone(q.id)).length;
+    st.accDiff = st.accDiff || 'all';
+    st.accSearch = st.accSearch || '';
+
+    const catAll = all.filter(q => q.category === st.cat);
+    let list = catAll;
+    if (st.accDiff && st.accDiff !== 'all') {
+      list = list.filter(q => (q.difficulty || 'easy').toLowerCase() === st.accDiff.toLowerCase());
+    }
+    if (st.accSearch) {
+      const qLower = st.accSearch.toLowerCase().trim();
+      list = list.filter(q =>
+        (q.title || '').toLowerCase().includes(qLower) ||
+        (q.prompt || '').toLowerCase().includes(qLower) ||
+        (q.topic || '').toLowerCase().includes(qLower) ||
+        (q.id || '').toLowerCase().includes(qLower)
+      );
+    }
+
+    const catSolved = catAll.filter(q => pDone(q.id)).length;
+    const pct = catAll.length ? Math.round((catSolved / catAll.length) * 100) : 0;
+    const progFill = $('#codingRailProgress');
+    if (progFill) progFill.style.width = pct + '%';
+
     $('#questionSetTitle').textContent = st.cat.toUpperCase();
     const pos = $('#codingStripPosition');
-    if (pos) pos.textContent = (solvedN ? solvedN + ' solved · ' : '') + list.length + ' total';
+    if (pos) pos.textContent = (catSolved ? catSolved + ' solved · ' : '') + list.length + (list.length !== catAll.length ? ' matching (' + catAll.length + ' total)' : ' total');
+
+    // Wire search input once
+    const searchInput = $('#codingRailSearch');
+    if (searchInput && !searchInput._wired) {
+      searchInput._wired = true;
+      searchInput.addEventListener('input', () => {
+        st.accSearch = searchInput.value;
+        st.accI = 0;
+        Coding.renderAccentureList(all);
+      });
+    }
+
+    // Wire diff filter pills once
+    $$('#codingView [data-acc-diff]').forEach(pill => {
+      pill.classList.toggle('active', pill.dataset.accDiff === st.accDiff);
+      if (!pill._wired) {
+        pill._wired = true;
+        pill.addEventListener('click', () => {
+          st.accDiff = pill.dataset.accDiff;
+          $$('#codingView [data-acc-diff]').forEach(p => p.classList.toggle('active', p === pill));
+          st.accI = 0;
+          Coding.renderAccentureList(all);
+        });
+      }
+    });
 
     $('#codingQuestionList').innerHTML = list.map((q, i) => {
       const done = pDone(q.id);
@@ -991,6 +1384,9 @@ const Coding = {
       st.accList = list; st.accI = +b.dataset.acq;
       self.renderAccentureQuestion();
       self.renderAccentureList(all);
+      if (window.innerWidth <= 1024) {
+        setMobileActivePane($('#accMobileNav'), $('#accWorkbench'), 'problem');
+      }
       const station = $('.coding-workbench');
       if (station) station.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
@@ -1093,6 +1489,11 @@ const Coding = {
     $('#problemPosition').textContent = (st.accI + 1) + ' of ' + st.accList.length;
     $('#codingCategoryLabel').textContent = 'Accenture ' + st.cat.toUpperCase();
 
+    const prevBtn = $('#probPrevBtn');
+    const nextBtn = $('#probNextBtn');
+    if (prevBtn) prevBtn.disabled = st.accI <= 0;
+    if (nextBtn) nextBtn.disabled = st.accI >= st.accList.length - 1;
+
     /* ---- Build problem pane body ---- */
     let body = '';
     body += '<div class="problem-meta">' +
@@ -1143,14 +1544,18 @@ const Coding = {
       if (q.tests && q.tests.length && st.cat === 'dsa') {
         body += '<h3>Examples</h3><div class="problem-examples">';
         q.tests.slice(0, 3).forEach((t, k) => {
-          body += '<div class="problem-example"><strong>Example ' + (k + 1) + '</strong>' +
-            '<pre><span>Input:</span> ' + esc((t.args || []).join('\n')) + '\n<span>Output:</span> ' + esc(t.expected) + '</pre></div>';
+          const inputStr = (t.args || []).join('\n');
+          body += '<div class="problem-example">' +
+            '<button type="button" class="btn-copy-example" data-copy-val="' + esc(inputStr) + '" title="Copy example input">📋 Copy</button>' +
+            '<strong>Example ' + (k + 1) + '</strong>' +
+            '<pre><span>Input:</span> ' + esc(inputStr) + '\n<span>Output:</span> ' + esc(t.expected) + '</pre></div>';
         });
         body += '</div>';
       }
     }
 
     $('#codingProblem').innerHTML = body;
+    attachExampleCopyHandlers($('#codingProblem'));
 
     /* ---- Console lower pane ---- */
     const tcEl = $('#accTestCases');
@@ -1240,10 +1645,14 @@ const Coding = {
     /* ---- Helper: switch console tab ---- */
     function switchAccTab(name) {
       $$('#codingView [data-acctab]').forEach(t => t.classList.toggle('active', t.dataset.acctab === name));
-      const tc  = $('#accTestCases');    if (tc)  tc.hidden  = (name !== 'tests');
-      const out = $('#runOutput');       if (out) out.hidden = (name !== 'result');
-      const pv  = $('#frontendPreview'); if (pv)  pv.hidden  = (name !== 'preview');
-      const tpv = $('#targetPreview');   if (tpv) tpv.hidden = (name !== 'target');
+      const tc  = $('#accTestCases');       if (tc)  tc.hidden  = (name !== 'tests');
+      const cip = $('#accCustomInputPane'); if (cip) cip.hidden = (name !== 'custom');
+      const out = $('#runOutput');          if (out) out.hidden = (name !== 'result');
+      const pv  = $('#frontendPreview');    if (pv)  pv.hidden  = (name !== 'preview');
+      const tpv = $('#targetPreview');      if (tpv) tpv.hidden = (name !== 'target');
+      if (window.innerWidth <= 1024 && (name === 'result' || name === 'preview' || name === 'target')) {
+        setMobileActivePane($('#accMobileNav'), $('#accWorkbench'), 'console');
+      }
     }
 
     /* ============ FRONTEND LAB ============ */
@@ -1343,6 +1752,9 @@ const Coding = {
     pGet('drafts')[q.id] = code; window.OA_UI.saveProgress();
 
     switchAccTab('result');
+    if (window.innerWidth <= 1024) {
+      setMobileActivePane($('#accMobileNav'), $('#accWorkbench'), 'console');
+    }
     const out = $('#runOutput');
     if (out) { out.hidden = false; out.innerHTML = '<div class="fe-loading"><div class="fe-loading-spinner"></div><p>Executing test cases…</p></div>'; }
     const pv = $('#frontendPreview'); if (pv) pv.hidden = true;
@@ -1504,8 +1916,112 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  /* ---- Keyboard shortcut: Ctrl+Enter → Run ---- */
+  /* ---- Mobile segmented navigation for Accenture studio (< 1024px) ---- */
+  const accMNav = document.getElementById('accMobileNav');
+  const accWb = document.getElementById('accWorkbench');
+  if (accMNav && accWb) {
+    setupWorkbenchMobileNav(accMNav, accWb);
+  }
+
+  /* ---- Editor tools group for Accenture studio (Font, Wrap, Copy, Zen) ---- */
+  const accSheet = document.getElementById('accEditorSheet');
+  if (accSheet) {
+    setupEditorToolGroup(
+      accSheet,
+      () => {
+        const st = window.OA_CODING.Coding.state;
+        return st.cat === 'frontend' ? st['cm_' + (st.activeFeTab || 'html')] : st.accCm;
+      },
+      () => {
+        const st = window.OA_CODING.Coding.state;
+        if (st.cat === 'frontend') {
+          const cm = st['cm_' + (st.activeFeTab || 'html')];
+          return cm ? cm.getValue() : '';
+        }
+        return st.accCm ? st.accCm.getValue() : '';
+      }
+    );
+  }
+
+  /* ---- Prev / Next problem buttons for Accenture studio ---- */
+  const prevBtn = document.getElementById('probPrevBtn');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+      const st = window.OA_CODING.Coding.state;
+      if (st.accI > 0) {
+        st.accI--;
+        window.OA_CODING.Coding.renderAccentureQuestion();
+        window.OA_CODING.Coding.renderAccentureList(window.OA_BANKS.banks['accenture/coding'] || []);
+      }
+    });
+  }
+  const nextBtn = document.getElementById('probNextBtn');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+      const st = window.OA_CODING.Coding.state;
+      if (st.accList && st.accI < st.accList.length - 1) {
+        st.accI++;
+        window.OA_CODING.Coding.renderAccentureQuestion();
+        window.OA_CODING.Coding.renderAccentureList(window.OA_BANKS.banks['accenture/coding'] || []);
+      }
+    });
+  }
+
+  /* ---- Custom test runner button for Accenture studio ---- */
+  const btnRunAccCustom = document.getElementById('btnRunAccCustom');
+  if (btnRunAccCustom) {
+    btnRunAccCustom.addEventListener('click', async () => {
+      const st = window.OA_CODING.Coding.state;
+      const q = st.accQ;
+      if (!q) return;
+      const customStdin = ($('#accCustomInputText') && $('#accCustomInputText').value) || '';
+      const code = st.accCm ? st.accCm.getValue() : '';
+      const langSel = $('#editorLanguageSelect');
+      const lang = (langSel && langSel.value) || (q.language ? q.language.toLowerCase() : 'javascript');
+
+      $$('#codingView [data-acctab]').forEach(t => t.classList.toggle('active', t.dataset.acctab === 'result'));
+      const tc  = $('#accTestCases');       if (tc)  tc.hidden  = true;
+      const cip = $('#accCustomInputPane'); if (cip) cip.hidden = true;
+      const out = $('#runOutput');          if (out) { out.hidden = false; out.innerHTML = '<div class="fe-loading"><div class="fe-loading-spinner"></div><p>Executing with custom input…</p></div>'; }
+      const pv  = $('#frontendPreview');    if (pv)  pv.hidden  = true;
+      const tpv = $('#targetPreview');      if (tpv) tpv.hidden = true;
+
+      if (window.innerWidth <= 1024) {
+        setMobileActivePane(document.getElementById('accMobileNav'), document.getElementById('accWorkbench'), 'console');
+      }
+
+      try {
+        let r;
+        if (lang === 'javascript') {
+          r = runJsDsa(code, customStdin);
+        } else if (st.cat === 'sql') {
+          r = await runSql(code, q);
+        } else {
+          r = await runPythonDsa(code, customStdin);
+        }
+        const hasErr = !!r.error;
+        let html = '<div class="test-summary ' + (hasErr ? 'none-pass' : 'all-pass') + '">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center">' +
+          '<strong>' + (hasErr ? '❌ Custom Run Error' : '✅ Custom Run Succeeded') + '</strong>' +
+          '<span style="font-size:11.5px;opacity:0.9">' + (hasErr ? 'Runtime Exception' : 'Standard I/O') + '</span>' +
+          '</div></div>';
+        html += '<div class="test-results">' +
+          '<div class="test-result ' + (hasErr ? 'fail' : 'pass') + '">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center"><b>' + (hasErr ? '❌ Execution Error' : '✅ Standard Output') + '</b></div>' +
+          '<div style="margin-top:6px;display:flex;flex-direction:column;gap:8px">' +
+          '<div><span style="color:var(--text-muted);font-size:11.5px">Custom Input (stdin):</span><pre class="ccc-pre" style="margin-top:2px;padding:8px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;font-family:var(--font-mono);font-size:12px">' + esc(customStdin || '(empty stdin)') + '</pre></div>' +
+          '<div><span style="color:var(--text-muted);font-size:11.5px">' + (hasErr ? 'Error:' : 'Output (stdout):') + '</span><pre class="ccc-pre" style="margin-top:2px;padding:8px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;font-family:var(--font-mono);font-size:12px;color:' + (hasErr ? 'var(--color-error)' : 'var(--text-primary)') + '">' + esc(r.error || r.stdout || '(no output produced)') + '</pre></div>' +
+          '</div></div></div>';
+        out.innerHTML = html;
+      } catch (err) {
+        out.innerHTML = '<div class="test-summary none-pass"><strong>Runner Error</strong></div><div class="test-result fail"><code>' + esc(err.message || String(err)) + '</code></div>';
+      }
+    });
+  }
+
+  /* ---- Global keyboard shortcuts ---- */
   document.addEventListener('keydown', (e) => {
+    // 1. Ctrl+Enter / Cmd+Enter: Run
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       const codingView = document.getElementById('codingView');
       if (codingView && !codingView.hidden) {
@@ -1523,18 +2039,89 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
+
+    // 2. Ctrl+/ or Cmd+/: Focus problem rail search
+    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+      const codingView = document.getElementById('codingView');
+      if (codingView && !codingView.hidden) {
+        const s = document.getElementById('codingRailSearch');
+        if (s) { e.preventDefault(); s.focus(); s.select(); return; }
+      }
+      const companySectionView = document.getElementById('companySectionView');
+      if (companySectionView && !companySectionView.hidden) {
+        const s = document.getElementById('cRailSearch');
+        if (s) { e.preventDefault(); s.focus(); s.select(); return; }
+      }
+    }
+
+    // 3. Alt+ArrowLeft / Alt+ArrowRight: Cycle problems
+    if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      const codingView = document.getElementById('codingView');
+      if (codingView && !codingView.hidden) {
+        e.preventDefault();
+        if (e.key === 'ArrowLeft') {
+          const b = document.getElementById('probPrevBtn');
+          if (b && !b.disabled) b.click();
+        } else {
+          const b = document.getElementById('probNextBtn');
+          if (b && !b.disabled) b.click();
+        }
+        return;
+      }
+      const companySectionView = document.getElementById('companySectionView');
+      if (companySectionView && !companySectionView.hidden) {
+        e.preventDefault();
+        if (e.key === 'ArrowLeft') {
+          const b = document.getElementById('cProbPrevBtn');
+          if (b && !b.disabled) b.click();
+        } else {
+          const b = document.getElementById('cProbNextBtn');
+          if (b && !b.disabled) b.click();
+        }
+        return;
+      }
+    }
+
+    // 4. Escape: Exit Zen fullscreen mode if active
+    if (e.key === 'Escape') {
+      const zenSheets = document.querySelectorAll('.editor-sheet.zen-mode');
+      if (zenSheets.length) {
+        zenSheets.forEach(sheet => {
+          sheet.classList.remove('zen-mode');
+          const zenBtn = sheet.querySelector('.btn-editor-tool[id$="ZenToggle"]');
+          if (zenBtn) {
+            zenBtn.classList.remove('active');
+            zenBtn.textContent = '⛶';
+            zenBtn.title = 'Zen fullscreen mode';
+          }
+        });
+        toast('Exited Zen mode');
+        const st = window.OA_CODING && window.OA_CODING.Coding && window.OA_CODING.Coding.state;
+        if (st) {
+          setTimeout(() => {
+            st.accCm && st.accCm.refresh();
+            st.cm_html && st.cm_html.refresh();
+            st.cm_css && st.cm_css.refresh();
+            st.cm_js && st.cm_js.refresh();
+            st.cm && st.cm.refresh();
+          }, 50);
+        }
+      }
+    }
   });
 
-  /* ---- Accenture console tabs (including new target tab) ---- */
+  /* ---- Accenture console tabs (including tests, custom, result, preview, target) ---- */
   $$('#codingView [data-acctab]').forEach(tab => {
     tab.addEventListener('click', () => {
       $$('#codingView [data-acctab]').forEach(t => t.classList.toggle('active', t === tab));
       const target = tab.dataset.acctab;
       const tc  = $('#accTestCases');
+      const cip = $('#accCustomInputPane');
       const out = $('#runOutput');
       const pv  = $('#frontendPreview');
       const tpv = $('#targetPreview');
       if (tc)  tc.hidden  = (target !== 'tests');
+      if (cip) cip.hidden = (target !== 'custom');
       if (out) out.hidden = (target !== 'result');
       if (pv)  pv.hidden  = (target !== 'preview');
       if (tpv) tpv.hidden = (target !== 'target');

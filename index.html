@@ -368,7 +368,16 @@
       <div class="coding-category-nav" id="codingCategoryNav"></div>
       <div class="judge-status-badge"><span class="judge-dot">●</span> In-Browser Judge Ready</div>
     </header>
-    <div class="coding-workbench">
+
+    <!-- Mobile Segmented View Navigation (< 1024px) -->
+    <nav class="workbench-mobile-nav" id="accMobileNav" role="tablist" aria-label="Workbench view mode">
+      <button type="button" class="wmn-tab" data-wmn="rail">☰ Problems</button>
+      <button type="button" class="wmn-tab active" data-wmn="problem">📄 Problem</button>
+      <button type="button" class="wmn-tab" data-wmn="editor">💻 Code</button>
+      <button type="button" class="wmn-tab" data-wmn="console">🧪 Output</button>
+    </nav>
+
+    <div class="coding-workbench" id="accWorkbench">
       <!-- Column 1: Rail -->
       <aside class="coding-rail" id="codingRail">
         <div class="coding-rail-head">
@@ -378,38 +387,69 @@
           </div>
           <button type="button" class="rail-toggle-btn" id="railToggleBtn" title="Collapse problem list (wider code view)">◀</button>
         </div>
+        <div class="rail-filter-panel">
+          <div class="rail-search-box">
+            <span class="rail-search-icon">🔍</span>
+            <input type="search" id="codingRailSearch" class="rail-search-input" placeholder="Search problems (Ctrl+/)..." aria-label="Search problems">
+          </div>
+          <div class="rail-diff-filters" role="group" aria-label="Difficulty filter">
+            <button type="button" class="diff-filter-pill active" data-acc-diff="all">All</button>
+            <button type="button" class="diff-filter-pill" data-acc-diff="easy">Easy</button>
+            <button type="button" class="diff-filter-pill" data-acc-diff="medium">Med</button>
+            <button type="button" class="diff-filter-pill" data-acc-diff="hard">Hard</button>
+          </div>
+          <div class="rail-progress-track" title="Solved progress">
+            <div class="rail-progress-fill" id="codingRailProgress" style="width: 0%"></div>
+          </div>
+        </div>
         <div class="coding-rail-list" id="codingQuestionList" role="tablist" aria-label="Problems"></div>
         <div class="coding-rail-foot"><span id="codingStripPosition"></span></div>
       </aside>
 
       <!-- Column 2: Problem Pane -->
-      <section class="problem-pane">
+      <section class="problem-pane" id="accProblemPane">
         <header class="panel-toolbar">
           <div class="panel-title-group"><span class="panel-icon">📄</span><strong>Description</strong></div>
-          <span id="problemPosition" class="panel-pos"></span>
+          <div class="problem-nav-buttons">
+            <button type="button" class="btn-problem-nav" id="probPrevBtn" title="Previous problem (Alt+Left)">◀ Prev</button>
+            <span id="problemPosition" class="panel-pos"></span>
+            <button type="button" class="btn-problem-nav" id="probNextBtn" title="Next problem (Alt+Right)">Next ▶</button>
+          </div>
         </header>
         <article class="problem-sheet" id="codingProblem"></article>
       </section>
 
       <!-- Column 3: Editor Sheet -->
-      <section class="editor-sheet">
+      <section class="editor-sheet" id="accEditorSheet">
         <div class="editor-toolbar">
-          <div class="editor-lang-wrap" id="editorLangWrap">
-            <span class="editor-code-icon"><code>&lt;/&gt;</code></span>
-            <select id="editorLanguageSelect" class="editor-lang-select" aria-label="Select Programming Language">
-              <option value="python">Python 3 (Pyodide WASM)</option>
-              <option value="javascript">JavaScript (Sandbox)</option>
-              <option value="sql">SQL (SQLite WASM)</option>
-            </select>
+          <div class="editor-toolbar-start">
+            <div class="editor-lang-wrap" id="editorLangWrap">
+              <span class="editor-code-icon"><code>&lt;/&gt;</code></span>
+              <select id="editorLanguageSelect" class="editor-lang-select" aria-label="Select Programming Language">
+                <option value="python">Python 3 (Pyodide WASM)</option>
+                <option value="javascript">JavaScript (Sandbox)</option>
+                <option value="sql">SQL (SQLite WASM)</option>
+              </select>
+            </div>
+            <div id="frontendFileTabs" class="frontend-file-tabs" hidden>
+              <button class="file-tab active" data-file-tab="html" title="Edit HTML structure">⟨⟩ index.html</button>
+              <button class="file-tab" data-file-tab="css" title="Edit CSS styles"># style.css</button>
+              <button class="file-tab" data-file-tab="js" title="Edit JavaScript logic">JS script.js</button>
+            </div>
           </div>
-          <div id="frontendFileTabs" class="frontend-file-tabs" hidden>
-            <button class="file-tab active" data-file-tab="html" title="Edit HTML structure">⟨⟩ index.html</button>
-            <button class="file-tab" data-file-tab="css" title="Edit CSS styles"># style.css</button>
-            <button class="file-tab" data-file-tab="js" title="Edit JavaScript logic">JS script.js</button>
-          </div>
-          <div class="editor-actions">
-            <button id="resetCodeButton" class="btn-editor-action" type="button">Reset</button>
-            <button id="runCodeButton" class="btn-editor-run" type="button">Run Preview ▶</button>
+          <div class="editor-toolbar-end">
+            <div class="editor-tools-group">
+              <button type="button" class="btn-editor-tool" id="accFontMinus" title="Decrease font size">A-</button>
+              <span class="editor-font-val" id="accFontVal">13px</span>
+              <button type="button" class="btn-editor-tool" id="accFontPlus" title="Increase font size">A+</button>
+              <button type="button" class="btn-editor-tool" id="accWrapToggle" title="Toggle line wrap">Wrap</button>
+              <button type="button" class="btn-editor-tool" id="accCopyCode" title="Copy code to clipboard">Copy</button>
+              <button type="button" class="btn-editor-tool" id="accZenToggle" title="Zen fullscreen mode">⛶</button>
+            </div>
+            <div class="editor-actions">
+              <button id="resetCodeButton" class="btn-editor-action" type="button">Reset</button>
+              <button id="runCodeButton" class="btn-editor-run" type="button">Run Preview ▶</button>
+            </div>
           </div>
         </div>
         <!-- Single-file editor (DSA / SQL / non-frontend) -->
@@ -426,6 +466,7 @@
           <header class="console-toolbar">
             <div class="console-tabs" role="tablist">
               <button type="button" class="console-tab active" data-acctab="tests">Test Cases</button>
+              <button type="button" class="console-tab" data-acctab="custom" id="accCustomTab">Custom Input</button>
               <button type="button" class="console-tab" data-acctab="result" id="accResultTab">Result</button>
               <button type="button" class="console-tab" data-acctab="preview" id="accPreviewTab" hidden>Live Preview</button>
               <button type="button" class="console-tab" data-acctab="target" id="accTargetTab" hidden>Target UI</button>
@@ -434,6 +475,13 @@
           </header>
           <div class="console-body">
             <div id="accTestCases" class="console-test-cases"></div>
+            <div id="accCustomInputPane" class="custom-input-pane" hidden>
+              <div class="cip-header">
+                <span>Enter custom standard input to test your code:</span>
+                <button type="button" class="btn-cip-run" id="btnRunAccCustom">Run with Custom Input ▶</button>
+              </div>
+              <textarea id="accCustomInputText" class="custom-input-textarea" placeholder="Paste or type test input here..."></textarea>
+            </div>
             <div id="runOutput" class="run-output" hidden>Click "Run Preview ▶" to execute your code.</div>
             <!-- Live preview (student's rendered code) -->
             <iframe id="frontendPreview" class="frontend-preview" title="Live preview of your code" sandbox="allow-scripts allow-same-origin" hidden></iframe>
